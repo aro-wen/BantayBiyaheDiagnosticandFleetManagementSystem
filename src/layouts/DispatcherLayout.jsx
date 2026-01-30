@@ -52,9 +52,6 @@ const DispatcherLayout = () => {
           <NavItem to="/dispatcher/assign" icon={<Wrench size={20} />} label="Maintenance Jobs" />
           <NavItem to="/dispatcher/drivers" icon={<Users size={20} />} label="Drivers" />
           <NavItem to="/dispatcher/alerts" icon={<Bell size={20} />} label="Alerts & Notifications" />
-          
-          {/* Placeholder for Map if you have a dedicated full-screen map route */}
-          <NavItem to="/dispatcher/map" icon={<Map size={20} />} label="Live Map" />
         </nav>
 
         {/* Footer with Sign Out */}
