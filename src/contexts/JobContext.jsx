@@ -2,8 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const JobContext = createContext();
 
-// --- 1. INITIAL MOCK DATA (Consolidated) ---
-
+// --- 1. INITIAL MOCK DATA ---
 const INITIAL_JOBS = [
   { id: 'J-2401', vehicle: 'V-101', plate: 'ABC 1234', type: 'Urgent', priority: 'High', status: 'Pending', date: '1/24/2026', desc: 'Check Engine Light - P0171' },
   { id: 'J-2402', vehicle: 'V-103', plate: 'DEF 5678', type: 'Routine', priority: 'Medium', status: 'In Progress', date: '1/24/2026', desc: 'Bi-weekly preventive maintenance' },
@@ -34,10 +33,16 @@ const INITIAL_ALERTS = [
   { id: 3, type: 'Critical', vehicle: 'JPN-001', message: 'Impact detected: Possible collision', time: '1 hour ago', status: 'Unread' },
 ];
 
-const INITIAL_DTCS = [ /* ... existing DTCs ... */ ]; // Keeping simplified for brevity
-const INITIAL_NOTES = [ /* ... existing Notes ... */ ];
+const INITIAL_DTCS = [
+  { id: 'D-001', code: 'P0171', vehicle: 'V-101', plate: 'ABC 1234', desc: 'System Too Lean (Bank 1)', severity: 'Critical', timestamp: '2026-01-24 09:15', status: 'Active' },
+  { id: 'D-002', code: 'P0420', vehicle: 'V-101', plate: 'ABC 1234', desc: 'Catalyst System Efficiency Below Threshold', severity: 'Warning', timestamp: '2026-01-24 09:15', status: 'Active' },
+];
 
-// Helper to load/save
+const INITIAL_NOTES = [
+  { id: 1, jobId: 'J-2402', vehicle: 'V-103', type: 'Inspection', content: 'Routine oil change completed.', tech: 'Juan dela Cruz', time: '2026-01-24 09:30' }
+];
+
+// Helper to load from Storage
 const getSavedData = (key, fallback) => {
   const saved = localStorage.getItem(key);
   return saved ? JSON.parse(saved) : fallback;
@@ -49,9 +54,11 @@ export const JobProvider = ({ children }) => {
   const [vehicles, setVehicles] = useState(() => getSavedData('bantay_vehicles', INITIAL_VEHICLES));
   const [drivers, setDrivers] = useState(() => getSavedData('bantay_drivers', INITIAL_DRIVERS));
   const [alerts, setAlerts] = useState(() => getSavedData('bantay_alerts', INITIAL_ALERTS));
-  
   const [dtcs, setDtcs] = useState(() => getSavedData('bantay_dtcs', INITIAL_DTCS));
   const [notes, setNotes] = useState(() => getSavedData('bantay_notes', INITIAL_NOTES));
+  
+  // NEW: Toast State
+  const [toast, setToast] = useState(null);
 
   // --- 3. PERSISTENCE ---
   useEffect(() => { localStorage.setItem('bantay_jobs', JSON.stringify(jobs)); }, [jobs]);
@@ -61,32 +68,60 @@ export const JobProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('bantay_dtcs', JSON.stringify(dtcs)); }, [dtcs]);
   useEffect(() => { localStorage.setItem('bantay_notes', JSON.stringify(notes)); }, [notes]);
 
-  // --- 4. ACTIONS ---
+  // --- 4. TOAST HELPER ---
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  // --- 5. ACTIONS ---
   
   // Jobs
-  const startJob = (id) => setJobs(c => c.map(j => j.id === id ? { ...j, status: 'In Progress' } : j));
-  const completeJob = (id) => setJobs(c => c.map(j => j.id === id ? { ...j, status: 'Completed' } : j));
-  const addNewJob = (data) => setJobs(p => [{ id: `J-${Math.floor(Math.random() * 10000)}`, status: 'Pending', date: new Date().toLocaleDateString(), ...data }, ...p]);
+  const startJob = (id) => {
+    setJobs(c => c.map(j => j.id === id ? { ...j, status: 'In Progress' } : j));
+    showToast('Job started', 'success');
+  };
+
+  const completeJob = (id) => {
+    setJobs(c => c.map(j => j.id === id ? { ...j, status: 'Completed' } : j));
+    showToast('Job marked as completed', 'success');
+  };
+
+  const addNewJob = (data) => {
+    setJobs(p => [{ id: `J-${Math.floor(Math.random() * 10000)}`, status: 'Pending', date: new Date().toLocaleDateString(), ...data }, ...p]);
+    showToast('New maintenance job created successfully', 'success');
+  };
 
   // Drivers
   const unassignDriver = (driverId) => {
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, vehicle: 'Not assigned', status: 'Idle' } : d));
+    showToast('Driver unassigned successfully', 'success'); // Using 'success' (green) or you can use 'error' (red) for removal
   };
+
   const assignDriver = (driverId, vehicleId) => {
-    // Logic could be expanded to check if vehicle is already taken
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, vehicle: vehicleId, status: 'Active' } : d));
+    showToast(`Vehicle ${vehicleId} assigned to driver`, 'success');
   };
 
   // Alerts
   const markAlertRead = (id) => setAlerts(c => c.map(a => a.id === id ? { ...a, status: 'Read' } : a));
   const deleteAlert = (id) => setAlerts(c => c.filter(a => a.id !== id));
-  const markAllAlertsRead = () => setAlerts(c => c.map(a => ({ ...a, status: 'Read' })));
+  const markAllAlertsRead = () => {
+    setAlerts(c => c.map(a => ({ ...a, status: 'Read' })));
+    showToast('All alerts marked as read', 'success');
+  };
 
   // Misc
-  const resolveDTC = (id) => setDtcs(c => c.map(d => d.id === id ? { ...d, status: 'Resolved' } : d));
-  const addNote = (note) => setNotes(c => [{ id: Date.now(), tech: 'Juan dela Cruz', time: new Date().toLocaleString(), ...note }, ...c]);
+  const resolveDTC = (id) => {
+    setDtcs(c => c.map(d => d.id === id ? { ...d, status: 'Resolved' } : d));
+    showToast('DTC issue marked as resolved', 'success');
+  };
 
-  // --- 5. STATS ---
+  const addNote = (note) => {
+    setNotes(c => [{ id: Date.now(), tech: 'Juan dela Cruz', time: new Date().toLocaleString(), ...note }, ...c]);
+    showToast('Note added to job record', 'success');
+  };
+
+  // --- 6. STATS ---
   const stats = {
     total: jobs.length,
     inProgress: jobs.filter(j => j.status === 'In Progress').length,
@@ -94,7 +129,6 @@ export const JobProvider = ({ children }) => {
     pending: jobs.filter(j => j.status === 'Pending').length,
     critical: jobs.filter(j => j.type === 'Urgent' && j.status !== 'Completed').length,
     activeDTCs: dtcs.filter(d => d.status === 'Active').length,
-    // Add fleet stats
     activeVehicles: vehicles.length,
     criticalVehicles: vehicles.filter(v => v.status === 'Critical').length,
     unreadAlerts: alerts.filter(a => a.status === 'Unread').length
@@ -102,7 +136,8 @@ export const JobProvider = ({ children }) => {
 
   return (
     <JobContext.Provider value={{ 
-      jobs, vehicles, drivers, alerts, dtcs, notes, stats,
+      jobs, vehicles, drivers, alerts, dtcs, notes, stats, toast, // <--- Export toast
+      setToast, showToast, // <--- Export helpers
       startJob, completeJob, addNewJob,
       unassignDriver, assignDriver,
       markAlertRead, deleteAlert, markAllAlertsRead,

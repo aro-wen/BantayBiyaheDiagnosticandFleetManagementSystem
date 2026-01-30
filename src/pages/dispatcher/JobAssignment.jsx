@@ -1,31 +1,22 @@
 import React, { useState } from 'react';
-import { Plus, Search, Wrench, CheckCircle, AlertTriangle, Truck } from 'lucide-react';
+import { Plus, Wrench, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useJobs } from '../../contexts/JobContext';
 import StatusBadge from '../../components/StatusBadge';
+import CreateJobModal from '../../components/CreateJobModal'; // <--- Import New Component
 
 const JobAssignment = () => {
   const { jobs, addNewJob } = useJobs();
-  const [showForm, setShowForm] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false); // Renamed for clarity
   
   // --- CALCULATE METRICS DYNAMICALLY ---
   const activeJobsCount = jobs.filter(j => j.status === 'In Progress' || j.status === 'Pending').length;
-  const completedTodayCount = jobs.filter(j => j.status === 'Completed').length; // Simplified for demo
+  const completedTodayCount = jobs.filter(j => j.status === 'Completed').length;
   const upcomingCount = jobs.filter(j => j.status === 'Pending').length;
 
-  // Form State
-  const [formData, setFormData] = useState({
-    vehicle: 'V-101',
-    plate: 'ABC 1234',
-    type: 'Routine',
-    priority: 'Medium',
-    desc: ''
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addNewJob(formData); 
-    setShowForm(false);
-    setFormData({ ...formData, desc: '' });
+  // Handle the data coming back from the modal
+  const handleCreateJob = (jobData) => {
+    addNewJob(jobData);
+    setIsModalOpen(false);
   };
 
   return (
@@ -37,7 +28,7 @@ const JobAssignment = () => {
         <p className="text-slate-500">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </div>
 
-      {/* 2. KPI CARDS (New Feature) */}
+      {/* 2. KPI CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <JobMetricCard 
           title="Active Jobs" 
@@ -66,7 +57,7 @@ const JobAssignment = () => {
       <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 pt-4">
         <h2 className="text-lg font-semibold text-slate-800">Maintenance Jobs</h2>
         <button 
-          onClick={() => setShowForm(true)}
+          onClick={() => setIsModalOpen(true)}
           className="flex items-center px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm"
         >
           <Plus size={16} className="mr-2" />
@@ -130,57 +121,12 @@ const JobAssignment = () => {
         )}
       </div>
 
-      {/* CREATE JOB MODAL (Existing logic) */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="font-bold text-slate-800">Create New Job</h3>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              {/* Form content remains the same as before... */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Vehicle</label>
-                  <select className="w-full px-3 py-2 border rounded-lg text-sm" value={formData.vehicle} onChange={(e) => setFormData({...formData, vehicle: e.target.value})}>
-                    <option value="V-101">V-101 (ABC 1234)</option>
-                    <option value="V-102">V-102 (PQR 2468)</option>
-                    <option value="V-103">V-103 (DEF 5678)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Type</label>
-                  <select className="w-full px-3 py-2 border rounded-lg text-sm" value={formData.type} onChange={(e) => setFormData({...formData, type: e.target.value})}>
-                    <option value="Routine">Routine</option>
-                    <option value="Urgent">Urgent</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Priority Level</label>
-                <div className="flex gap-4">
-                  {['Low', 'Medium', 'High'].map(p => (
-                    <label key={p} className="flex items-center cursor-pointer">
-                      <input type="radio" name="priority" value={p} checked={formData.priority === p} onChange={(e) => setFormData({...formData, priority: e.target.value})} className="mr-2" />
-                      <span className="text-sm text-slate-700">{p}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Description</label>
-                <textarea required rows="3" className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Describe the issue..." value={formData.desc} onChange={(e) => setFormData({...formData, desc: e.target.value})}></textarea>
-              </div>
-              <div className="pt-2 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-500 font-medium">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800">Create Job</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* --- RENDER THE NEW MODAL --- */}
+      <CreateJobModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onConfirm={handleCreateJob} 
+      />
 
     </div>
   );

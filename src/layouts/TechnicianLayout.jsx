@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'; // <--- 1. Import useNavigate
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   Activity, 
   AlertTriangle, 
@@ -7,15 +7,32 @@ import {
   ClipboardList, 
   Bell, 
   Wrench,
-  LogOut // <--- 2. Import Icon
+  LogOut 
 } from 'lucide-react';
+import { useJobs } from '../contexts/JobContext';
+import Toast from '../components/Toast';
 
 const TechnicianLayout = () => {
-  const navigate = useNavigate(); // <--- 3. Initialize Hook
+  const navigate = useNavigate();
+  const { toast, setToast } = useJobs(); // <--- Connect to Global Toast State
+
+  const handleSignOut = () => {
+    navigate('/');
+  };
 
   return (
     <div className="flex h-screen bg-slate-50">
       
+      {/* GLOBAL TOAST NOTIFICATION */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+
+      {/* SIDEBAR */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col fixed h-full z-10">
         <div className="h-16 flex items-center px-6 border-b border-slate-100">
           <div className="bg-blue-600 p-1.5 rounded-lg mr-3">
@@ -35,10 +52,10 @@ const TechnicianLayout = () => {
           <NavItem to="/technician/notes" icon={<ClipboardList size={20} />} label="Notes" />
         </nav>
 
-        {/* 4. Footer with Sign Out Button */}
+        {/* Footer with Sign Out */}
         <div className="p-4 border-t border-slate-100">
           <button 
-            onClick={() => navigate('/')} // <--- 5. Click to Logout
+            onClick={handleSignOut}
             className="flex items-center text-sm text-slate-500 hover:text-red-600 transition-colors w-full px-3 py-2 rounded-lg hover:bg-slate-50"
           >
             <LogOut size={18} className="mr-3" />
@@ -48,8 +65,10 @@ const TechnicianLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content Area... (Unchanged) */}
+      {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col ml-64">
+        
+        {/* Top Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
           <div>
             <h2 className="text-lg font-semibold text-slate-800">Dashboard</h2>
@@ -76,6 +95,7 @@ const TechnicianLayout = () => {
           </div>
         </header>
 
+        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
@@ -84,6 +104,7 @@ const TechnicianLayout = () => {
   );
 };
 
+// Helper Component for Sidebar Links
 const NavItem = ({ to, icon, label }) => (
   <NavLink 
     to={to}
