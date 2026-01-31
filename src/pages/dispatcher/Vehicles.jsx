@@ -165,12 +165,13 @@ const DispatcherVehicles = () => {
           </div>
         ))}
       </div>
-
-      {/* --- 4. SHARED MODAL --- */}
+      
+      {/* SHARED MODAL */}
       <VehicleDetailModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         vehicle={selectedVehicle}
+        showNavigation={false}  // <--- ADD THIS LINE
       />
 
     </div>

@@ -2,18 +2,28 @@ import React, { useState } from 'react';
 import { Plus, Wrench, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useJobs } from '../../contexts/JobContext';
 import StatusBadge from '../../components/StatusBadge';
-import CreateJobModal from '../../components/CreateJobModal'; // <--- Import New Component
+import CreateJobModal from '../../components/CreateJobModal';
 
 const JobAssignment = () => {
   const { jobs, addNewJob } = useJobs();
-  const [isModalOpen, setIsModalOpen] = useState(false); // Renamed for clarity
+  const [isModalOpen, setIsModalOpen] = useState(false);
   
+  // --- NEW: FILTER STATE ---
+  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [priorityFilter, setPriorityFilter] = useState('All Priority');
+
   // --- CALCULATE METRICS DYNAMICALLY ---
   const activeJobsCount = jobs.filter(j => j.status === 'In Progress' || j.status === 'Pending').length;
   const completedTodayCount = jobs.filter(j => j.status === 'Completed').length;
   const upcomingCount = jobs.filter(j => j.status === 'Pending').length;
 
-  // Handle the data coming back from the modal
+  // --- FILTER LOGIC ---
+  const filteredJobs = jobs.filter(job => {
+    const matchesStatus = statusFilter === 'All Status' || job.status === statusFilter;
+    const matchesPriority = priorityFilter === 'All Priority' || job.priority === priorityFilter;
+    return matchesStatus && matchesPriority;
+  });
+
   const handleCreateJob = (jobData) => {
     addNewJob(jobData);
     setIsModalOpen(false);
@@ -65,23 +75,32 @@ const JobAssignment = () => {
         </button>
       </div>
 
-      {/* 4. FILTERS (Visual Placeholder) */}
+      {/* 4. FILTERS (NOW WORKING) */}
       <div className="flex gap-4">
-        <select className="px-4 py-2 bg-slate-50 border-none rounded-lg text-sm text-slate-600 font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer hover:bg-slate-100 transition-colors">
-          <option>All Status</option>
-          <option>Pending</option>
-          <option>In Progress</option>
-          <option>Completed</option>
+        <select 
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50"
+        >
+          <option value="All Status">All Status</option>
+          <option value="Pending">Pending</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Completed">Completed</option>
         </select>
-        <select className="px-4 py-2 bg-slate-50 border-none rounded-lg text-sm text-slate-600 font-medium focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer hover:bg-slate-100 transition-colors">
-          <option>All Priority</option>
-          <option>High</option>
-          <option>Medium</option>
-          <option>Low</option>
+
+        <select 
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50"
+        >
+          <option value="All Priority">All Priority</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
         </select>
       </div>
 
-      {/* 5. JOB TABLE */}
+      {/* 5. JOB TABLE (Uses filteredJobs) */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-white border-b border-slate-100">
@@ -96,32 +115,38 @@ const JobAssignment = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {jobs.map((job) => (
-              <tr key={job.id} className="hover:bg-slate-50 transition-colors group">
-                <td className="px-6 py-4 font-bold text-slate-800 text-sm">{job.id}</td>
-                <td className="px-6 py-4 text-sm font-medium text-slate-600">{job.vehicle}</td>
-                <td className="px-6 py-4 text-sm text-slate-600">
-                   <div className="flex items-center gap-2">
-                     <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">JD</div>
-                     Juan Dela Cruz
-                   </div>
+            {filteredJobs.length > 0 ? (
+              filteredJobs.map((job) => (
+                <tr key={job.id} className="hover:bg-slate-50 transition-colors group">
+                  <td className="px-6 py-4 font-bold text-slate-800 text-sm">{job.id}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-600">{job.vehicle}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">
+                     <div className="flex items-center gap-2">
+                       <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600">JD</div>
+                       Juan Dela Cruz
+                     </div>
+                  </td>
+                  <td className="px-6 py-4"><StatusBadge type={job.priority} /></td>
+                  <td className="px-6 py-4"><StatusBadge type={job.status} /></td>
+                  <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={job.desc}>
+                    {job.desc || 'Routine checkup and maintenance'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-400 text-right font-mono">{job.date}</td>
+                    
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="7" className="p-12 text-center text-slate-400 text-sm">
+                  No maintenance jobs found matching your filters.
                 </td>
-                <td className="px-6 py-4"><StatusBadge type={job.priority} /></td>
-                <td className="px-6 py-4"><StatusBadge type={job.status} /></td>
-                <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={job.desc}>
-                  {job.desc || 'Routine checkup and maintenance'}
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-400 text-right font-mono">{job.date}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
-        {jobs.length === 0 && (
-            <div className="p-12 text-center text-slate-400 text-sm">No maintenance jobs found.</div>
-        )}
       </div>
 
-      {/* --- RENDER THE NEW MODAL --- */}
+      {/* CREATE JOB MODAL */}
       <CreateJobModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 

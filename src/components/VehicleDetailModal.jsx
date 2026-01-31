@@ -5,17 +5,17 @@ import {
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
-const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
+// 1. Add 'showNavigation' to props and default it to TRUE (so Technician keeps it)
+const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true }) => {
   const [activeTab, setActiveTab] = useState('diagnostics');
 
   if (!isOpen || !vehicle) return null;
 
-  // Mock DTC data if not present in vehicle object
+  // Mock DTC logic (same as before)
   const dtcCodes = vehicle.dtcCodes || [
     { code: 'P0171', desc: 'System Too Lean (Bank 1)', severity: 'Critical' },
     { code: 'P0420', desc: 'Catalyst System Efficiency Below Threshold', severity: 'Warning' }
   ];
-
   const hasDTCs = vehicle.status !== 'Normal';
 
   return (
@@ -32,10 +32,7 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
             <p className="text-slate-500 font-medium">Plate: {vehicle.plate}</p>
             <p className="text-xs text-slate-400 mt-1">Detailed diagnostics and location information.</p>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors"
-          >
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
             <X size={24} />
           </button>
         </div>
@@ -71,7 +68,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
               <DiagCard title="Battery" value="12.4" unit="V" icon={<Battery size={20} className="text-yellow-500" />} />
               <DiagCard title="Fuel Level" value="35" unit="%" icon={<Droplet size={20} className="text-cyan-500" />} />
               
-              {/* Dynamic Check Engine Status */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Check Engine</div>
@@ -150,11 +146,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                   <div className="text-xs text-slate-400 mt-1">Last Updated: {vehicle.lastUpdate}</div>
                 </div>
               </div>
-
-              <button className="w-full py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl flex items-center justify-center transition-colors">
-                <Navigation size={18} className="mr-2" />
-                Open in Maps
-              </button>
             </div>
           )}
 
@@ -164,7 +155,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   );
 };
 
-// Helper for Diagnostic Cards
 const DiagCard = ({ title, value, unit, icon }) => (
   <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
     <div>

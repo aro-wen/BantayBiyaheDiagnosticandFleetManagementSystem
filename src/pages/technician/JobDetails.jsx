@@ -92,15 +92,16 @@ const JobDetails = () => {
 
           {/* Dispatcher Report (Mock Data for context) */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Dispatcher Report</h3>
-            <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 mb-4">
-              <p className="text-sm text-slate-700 italic">
-                "Driver reported loss of power during uphill climbs. Check Engine light is solid. P0171 code appeared on remote dashboard."
-              </p>
-              <div className="mt-2 flex items-center text-xs text-slate-500 font-medium">
-                <User size={12} className="mr-1" /> Reported by Dispatcher: Marco Polo
+            <h3 className="font-bold text-slate-800 mb-4">Dispatcher Report</h3>
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <p className="text-slate-600 italic mb-3">
+                  "{job.report || 'No additional details provided by dispatcher.'}"
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <User size={12} />
+                  <span>Reported by Dispatcher: <span className="font-medium text-slate-600">Marco Polo</span></span>
+                </div>
               </div>
-            </div>
           </div>
         </div>
 
