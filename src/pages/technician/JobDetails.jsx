@@ -48,7 +48,7 @@ const JobDetails = () => {
             <StatusBadge type={job.status} />
             <StatusBadge type={job.priority} />
           </div>
-          <p className="text-slate-500">{job.desc}</p>
+          <p className="text-slate-500">{job.description}</p>
         </div>
         <div className="text-right">
           <div className="text-sm text-slate-500">Scheduled Date</div>

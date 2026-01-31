@@ -90,7 +90,7 @@ const AssignedJobs = () => {
                       </span>
                     )}
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-1">{job.desc}</h3>
+                  <h3 className="text-lg font-bold text-slate-800 mb-1">{job.description}</h3>
                   <div className="flex items-center gap-4 text-sm text-slate-500">
                     <div className="flex items-center gap-1">
                       <Wrench size={14} /> {job.vehicle}

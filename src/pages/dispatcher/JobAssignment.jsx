@@ -128,7 +128,7 @@ const JobAssignment = () => {
                   </td>
                   <td className="px-6 py-4"><StatusBadge type={job.priority} /></td>
                   <td className="px-6 py-4"><StatusBadge type={job.status} /></td>
-                  <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={job.desc}>
+                  <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={job.description}>
                     {job.desc || 'Routine checkup and maintenance'}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-400 text-right font-mono">{job.date}</td>
