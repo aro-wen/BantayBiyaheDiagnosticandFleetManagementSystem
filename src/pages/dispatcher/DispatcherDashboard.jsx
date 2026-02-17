@@ -1,17 +1,21 @@
 import React from 'react';
 import { 
   AlertTriangle, CheckCircle, Clock, Truck, 
-  MapPin, Activity, ChevronRight 
+  Activity, ChevronRight, BarChart3 
 } from 'lucide-react';
-import { useJobs } from '../../contexts/JobContext'; // <--- Import Context
+import { useJobs } from '../../contexts/JobContext';
 import { Link } from 'react-router-dom';
+// Ensure this path matches where you created the widget
+import MaintenanceWidget from '../../components//MaintenanceWidget'; 
 
 const DispatcherDashboard = () => {
   // 1. Get Live Stats and Data
   const { stats, alerts, vehicles } = useJobs();
 
-  // 2. Prepare "Critical Vehicles" list for the sidebar
-  const criticalVehicles = vehicles.filter(v => v.status === 'Critical' || v.status === 'Warning');
+  // 2. Prepare "Critical Vehicles" list (Case insensitive check)
+  const criticalVehicles = vehicles.filter(v => 
+    ['critical', 'warning', 'maintenance'].includes(v.status?.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -34,35 +38,91 @@ const DispatcherDashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard 
           title="Active Vehicles" 
-          value={stats.activeVehicles} 
+          value={stats.activeVehicles || 0} 
           subtitle="On the road" 
           icon={<Truck size={20} />} 
           color="blue" 
         />
         <StatCard 
           title="Critical Issues" 
-          value={stats.criticalVehicles} 
+          value={stats.criticalVehicles || 0} 
           subtitle="Requires attention" 
           icon={<AlertTriangle size={20} />} 
           color="red" 
         />
         <StatCard 
           title="Active Jobs" 
-          value={stats.inProgress + stats.pending} 
+          value={(stats.inProgress || 0) + (stats.pending || 0)} 
           subtitle="Maintenance tasks" 
           icon={<Activity size={20} />} 
           color="orange" 
         />
         <StatCard 
           title="Unread Alerts" 
-          value={stats.unreadAlerts} 
+          value={stats.unreadAlerts || 0} 
           subtitle="New notifications" 
           icon={<Clock size={20} />} 
           color="slate" 
         />
       </div>
 
-      {/* Main Content Grid */}
+      {/* MIDDLE SECTION: Charts & Maintenance */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+        {/* Fleet Status Overview (Placeholder for a Chart) */}
+        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+              <BarChart3 size={18} className="text-slate-400" />
+              Fleet Status Distribution
+            </h3>
+          </div>
+          
+          {/* Simple Visual Bar to replace the empty chart */}
+          <div className="flex-1 flex flex-col justify-center gap-6">
+             {/* Status Bar: Normal */}
+             <div>
+               <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                 <span>Normal Operation</span>
+                 <span>{vehicles.filter(v => v.status === 'Normal' || v.status === 'Active').length} Vehicles</span>
+               </div>
+               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                 <div className="bg-green-500 h-full rounded-full" style={{ width: '75%' }}></div>
+               </div>
+             </div>
+
+             {/* Status Bar: Maintenance */}
+             <div>
+               <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                 <span>In Maintenance</span>
+                 <span>{vehicles.filter(v => v.status === 'Maintenance').length} Vehicles</span>
+               </div>
+               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                 <div className="bg-orange-400 h-full rounded-full" style={{ width: '15%' }}></div>
+               </div>
+             </div>
+
+             {/* Status Bar: Critical */}
+             <div>
+               <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                 <span>Critical / Offline</span>
+                 <span>{criticalVehicles.length} Vehicles</span>
+               </div>
+               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                 <div className="bg-red-500 h-full rounded-full" style={{ width: '5%' }}></div>
+               </div>
+             </div>
+          </div>
+        </div>
+
+        {/* NEW: Maintenance Widget (Takes up 1 column on the right) */}
+        <div className="lg:col-span-1">
+           <MaintenanceWidget />
+        </div>
+
+      </div>
+
+      {/* BOTTOM SECTION: Alerts & Health */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column: Recent Alerts (Live Data) */}
@@ -72,34 +132,36 @@ const DispatcherDashboard = () => {
             <Link to="/dispatcher/alerts" className="text-sm text-blue-600 hover:text-blue-700 font-medium">View All</Link>
           </div>
           <div className="divide-y divide-slate-50">
-            {alerts.slice(0, 4).map((alert) => (
+            {alerts && alerts.slice(0, 4).map((alert) => (
               <div key={alert.id} className="p-4 flex items-start gap-4 hover:bg-slate-50 transition-colors">
                 <div className={`mt-1 p-2 rounded-lg ${
-                  alert.type === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'
+                  alert.priority === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
                 }`}>
                   <AlertTriangle size={16} />
                 </div>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
                     <h4 className="font-semibold text-slate-800 text-sm">{alert.vehicle}</h4>
-                    <span className="text-xs text-slate-400">{alert.time}</span>
+                    <span className="text-xs text-slate-400">
+                      {new Date(alert.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </span>
                   </div>
                   <p className="text-sm text-slate-600 mt-0.5">{alert.message}</p>
                 </div>
               </div>
             ))}
-            {alerts.length === 0 && (
+            {(!alerts || alerts.length === 0) && (
               <div className="p-8 text-center text-slate-400 text-sm">No active alerts. System nominal.</div>
             )}
           </div>
         </div>
 
-        {/* Right Column: Fleet Health Status (Live Data) */}
+        {/* Right Column: Critical Vehicle List */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="font-bold text-slate-800">Fleet Health</h3>
+            <h3 className="font-bold text-slate-800">Critical Vehicles</h3>
           </div>
-          <div className="p-4 flex-1 overflow-y-auto max-h-[400px]">
+          <div className="p-4 flex-1 overflow-y-auto max-h-[300px]">
             {criticalVehicles.length > 0 ? (
               <div className="space-y-3">
                 {criticalVehicles.map(v => (
@@ -110,9 +172,11 @@ const DispatcherDashboard = () => {
                         <span className="font-bold text-sm text-slate-800">{v.id}</span>
                         <span className="text-xs font-bold text-red-600 uppercase">{v.status}</span>
                       </div>
-                      <p className="text-xs text-slate-500 truncate">{v.dtcCodes?.[0]?.desc || 'Unknown Issue'}</p>
+                      <p className="text-xs text-slate-500 truncate">{v.plate || 'No Plate'}</p>
                     </div>
-                    <ChevronRight size={16} className="text-red-300" />
+                    <Link to={`/dispatcher/vehicles/${v.id}`}>
+                      <ChevronRight size={16} className="text-red-300 hover:text-red-500 cursor-pointer" />
+                    </Link>
                   </div>
                 ))}
               </div>
@@ -122,7 +186,7 @@ const DispatcherDashboard = () => {
                   <CheckCircle size={24} className="text-green-600" />
                 </div>
                 <p className="text-sm font-medium text-slate-800">All Systems Nominal</p>
-                <p className="text-xs text-slate-500">No vehicles are currently reporting critical errors.</p>
+                <p className="text-xs text-slate-500 mt-1">No vehicles are reporting critical errors.</p>
               </div>
             )}
           </div>

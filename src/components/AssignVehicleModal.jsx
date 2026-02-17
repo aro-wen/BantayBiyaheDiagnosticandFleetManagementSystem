@@ -1,114 +1,122 @@
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, User, Car, Check } from 'lucide-react';
 
 const AssignVehicleModal = ({ 
   isOpen, 
   onClose, 
   onConfirm, 
-  drivers, 
-  vehicles, 
-  preSelectedDriverId 
+  drivers = [], 
+  vehicles = [], 
+  preSelectedDriverId = '' 
 }) => {
-  const [driverId, setDriverId] = useState('');
-  const [vehicleId, setVehicleId] = useState('');
+  const [selectedDriver, setSelectedDriver] = useState('');
+  const [selectedVehicle, setSelectedVehicle] = useState('');
 
-  // Reset or Initialize form when modal opens
+  // Reset when modal opens
   useEffect(() => {
     if (isOpen) {
-      setDriverId(preSelectedDriverId || '');
-      setVehicleId('');
+      setSelectedDriver(preSelectedDriverId || '');
+      setSelectedVehicle('');
     }
   }, [isOpen, preSelectedDriverId]);
 
-  if (!isOpen) return null;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!driverId || !vehicleId) return;
-    onConfirm(driverId, vehicleId);
+  const handleSubmit = () => {
+    if (!selectedDriver || !selectedVehicle) return alert('Please select both a driver and a vehicle.');
+    onConfirm(selectedDriver, selectedVehicle);
     onClose();
   };
 
-  // Find the selected driver object for display fallback (in case they are not in the 'available' list because they are the current selection)
-  // Note: For this specific modal logic, we usually pass the full list or handle the specific driver display in the parent, 
-  // but simpler is to just rely on the 'drivers' prop being the list of OPTIONS.
-  
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
         
-        {/* Header */}
+        {/* HEADER */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-slate-800">Assign Vehicle</h3>
+          <h3 className="font-bold text-slate-800 text-lg">Assign Vehicle</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={20} />
           </button>
         </div>
-        
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+        {/* CONTENT */}
+        <div className="p-6 space-y-5">
           
           {/* Driver Select */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Driver</label>
-            <select 
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              value={driverId}
-              onChange={(e) => setDriverId(e.target.value)}
-              required
-            >
-              <option value="">Select a Driver...</option>
-              {drivers.map(d => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.id})
-                </option>
-              ))}
-            </select>
-            {drivers.length === 0 && !driverId && (
-              <p className="text-xs text-orange-500 mt-1">No unassigned drivers available.</p>
-            )}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+              <User size={14} /> Select Driver
+            </label>
+            <div className="relative">
+              <select 
+                className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                value={selectedDriver}
+                onChange={(e) => setSelectedDriver(e.target.value)}
+                disabled={!!preSelectedDriverId}
+              >
+                <option value="" disabled>-- Choose a Driver --</option>
+                {drivers.map(d => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                ))}
+              </select>
+              <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
           </div>
 
           {/* Vehicle Select */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Vehicle</label>
-            <select 
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-              value={vehicleId}
-              onChange={(e) => setVehicleId(e.target.value)}
-              required
-            >
-              <option value="">Select a Vehicle...</option>
-              {vehicles.map(v => (
-                <option key={v.id} value={v.id}>
-                  {v.id} - {v.plate}
-                </option>
-              ))}
-            </select>
-            {vehicles.length === 0 && (
-              <p className="text-xs text-red-500 mt-1">No available vehicles in fleet.</p>
-            )}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+              <Car size={14} /> Select Vehicle
+            </label>
+            <div className="relative">
+              <select 
+                className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                value={selectedVehicle}
+                onChange={(e) => setSelectedVehicle(e.target.value)}
+              >
+                <option value="" disabled>-- Choose a Vehicle --</option>
+                {vehicles.length > 0 ? (
+                  vehicles.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.id} {v.plate ? `(${v.plate})` : ''} - {v.status || 'Active'}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No available vehicles</option>
+                )}
+              </select>
+              <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              </div>
+            </div>
+            
+            {/* Helpful Note */}
+            <p className="text-xs text-slate-400 mt-1">
+              Showing {vehicles.length} unassigned vehicles.
+            </p>
           </div>
 
-          {/* Footer Actions */}
-          <div className="pt-4 flex justify-end gap-3">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-4 py-2 text-sm text-slate-500 font-medium hover:text-slate-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={!driverId || !vehicleId}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-            >
-              Confirm Assignment
-            </button>
-          </div>
+        </div>
 
-        </form>
+        {/* FOOTER */}
+        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors text-sm"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSubmit} 
+            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm"
+          >
+            <Check size={16} /> Confirm Assignment
+          </button>
+        </div>
+
       </div>
     </div>
   );

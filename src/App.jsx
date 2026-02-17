@@ -11,7 +11,7 @@ import Login from './pages/Login';
 import AssignedJobs from './pages/technician/AssignedJobs';
 import JobDetails from './pages/technician/JobDetails';
 import VehicleHealth from './pages/technician/VehicleHealth';
-import DTCs from './pages/technician/DTCs';
+// import DTCs from './pages/technician/DTCs';
 import History from './pages/technician/History';
 import Notes from './pages/technician/Notes';
 
@@ -21,6 +21,10 @@ import DispatcherDashboard from './pages/dispatcher/DispatcherDashboard';
 import DispatcherVehicles from './pages/dispatcher/Vehicles';
 import Drivers from './pages/dispatcher/Drivers';
 import Alerts from './pages/dispatcher/Alerts';
+import MaintenanceSchedule from './pages/dispatcher/MaintenanceSchedule';
+
+// Driver Pages
+import DriverDashboard from './pages/driver/DriverDashboard';
 
 function App() {
   return (
@@ -37,7 +41,7 @@ function App() {
             <Route path="jobs" element={<AssignedJobs />} />
             <Route path="jobs/:id" element={<JobDetails />} />
             <Route path="health" element={<VehicleHealth />} />
-            <Route path="dtcs" element={<DTCs />} />
+            {/* <Route path="dtcs" element={<DTCs />} /> */}
             <Route path="history" element={<History />} />
             <Route path="notes" element={<Notes />} />
           </Route>
@@ -46,10 +50,13 @@ function App() {
           <Route path="/dispatcher" element={<DispatcherLayout />}>
             <Route path="dashboard" element={<DispatcherDashboard />} />
             <Route path="assign" element={<JobAssignment />} /> {/* <--- NEW */}
+            <Route path="schedule" element={<MaintenanceSchedule />} />
             <Route path="vehicles" element={<DispatcherVehicles />} />
             <Route path="drivers" element={<Drivers />} />
             <Route path="alerts" element={<Alerts />} />
           </Route>
+          {/* --- DRIVER PORTAL --- */}
+          <Route path="/driver/dashboard" element={<DriverDashboard />} />
 
         </Routes>
       </JobProvider>

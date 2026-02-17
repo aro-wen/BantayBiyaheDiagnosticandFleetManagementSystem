@@ -1,106 +1,106 @@
 import React from 'react';
-import { 
-  X, Printer, Download, User, Truck, CheckCircle, Calendar, Clock 
-} from 'lucide-react';
+import { X, Printer, Calendar, User, Wrench, FileText, Car } from 'lucide-react';
 
 const ServiceReportModal = ({ isOpen, onClose, report }) => {
   if (!isOpen || !report) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+        {/* Header */}
+        <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div>
-            <h3 className="font-bold text-slate-800">Service Report</h3>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Ref: {report.id}</p>
+            <h3 className="font-bold text-slate-800 text-lg">Service Report</h3>
+            <p className="text-xs text-slate-500 font-mono mt-1">ID: {report.id}</p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-            <X size={20} />
+            <X size={24} />
           </button>
         </div>
 
-        {/* Modal Body (Scrollable) */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        {/* Content */}
+        <div className="p-8 overflow-y-auto space-y-8">
           
-          {/* Status Banner */}
-          <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-100 text-green-800">
-            <CheckCircle size={24} className="text-green-600" />
-            <div>
-              <p className="font-bold text-sm">Maintenance Completed</p>
-              <p className="text-xs opacity-80">This job was successfully closed on {report.date}.</p>
-            </div>
-          </div>
-
-          {/* Grid Details */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
-                <Truck size={12} /> Vehicle
-              </span>
-              <div className="font-bold text-slate-800">{report.vehicle}</div>
-              <div className="text-xs text-slate-500">{report.plate || 'ABC-1234'}</div>
-            </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <span className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
-                <User size={12} /> Technician
-              </span>
-              <div className="font-bold text-slate-800">Juan dela Cruz</div>
-              <div className="text-xs text-slate-500">ID: T-1047</div>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Service Description</label>
-            <div className="p-4 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 leading-relaxed">
-              {report.desc}
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div>
-             <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Timeline</label>
-             <div className="relative pl-2 border-l-2 border-slate-100 space-y-6 ml-1">
-                {/* Event 1 */}
-                <div className="relative pl-4">
-                  <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-slate-200 border-2 border-white"></div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Job Created</p>
-                    <p className="text-xs text-slate-400">{report.date} • 08:30 AM</p>
-                  </div>
+          {/* Status Badge */}
+          <div className="flex justify-between items-start">
+             <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase tracking-wide">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Completed
+             </div>
+             <div className="text-right">
+                <div className="flex items-center justify-end gap-2 text-slate-500 text-sm">
+                    <Calendar size={14} />
+                    {new Date(report.created_at || Date.now()).toLocaleDateString()}
                 </div>
-                {/* Event 2 */}
-                <div className="relative pl-4">
-                  <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-blue-100 border-2 border-blue-500"></div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Work Started</p>
-                    <p className="text-xs text-slate-400">{report.date} • 09:15 AM</p>
-                  </div>
-                </div>
-                {/* Event 3 */}
-                <div className="relative pl-4">
-                  <div className="absolute -left-[9px] top-1 w-4 h-4 rounded-full bg-green-100 border-2 border-green-500"></div>
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Completed</p>
-                    <p className="text-xs text-slate-400">{report.date} • 11:45 AM</p>
-                  </div>
+                <div className="text-xs text-slate-400 mt-1">
+                    {new Date(report.created_at || Date.now()).toLocaleTimeString()}
                 </div>
              </div>
           </div>
 
+          {/* Vehicle & Tech Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-slate-50 rounded-xl border border-slate-100">
+            <div>
+                <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 mb-2">
+                    <Car size={12} /> Vehicle
+                </label>
+                <div className="font-bold text-slate-800 text-lg">{report.vehicle}</div>
+                <div className="text-sm text-slate-500">Fleet Unit #{report.vehicle.split('-')[1] || '000'}</div>
+            </div>
+            <div>
+                <label className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 mb-2">
+                    <User size={12} /> Technician
+                </label>
+                <div className="font-bold text-slate-800 text-lg">{report.technician || 'Unassigned'}</div>
+                <div className="text-sm text-slate-500">ID: T-1047</div>
+            </div>
+          </div>
+
+          {/* Job Details */}
+          <div>
+            <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                <Wrench size={18} className="text-blue-500"/> Service Details
+            </h4>
+            <div className="border-l-2 border-blue-500 pl-4 py-1">
+                <div className="text-sm font-bold text-slate-700 mb-1">Job Title</div>
+                <div className="text-slate-800">{report.description || report.desc}</div>
+                <div className="flex gap-2 mt-2">
+                     <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded">
+                        Type: {report.type}
+                     </span>
+                     <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded">
+                        Priority: {report.priority}
+                     </span>
+                </div>
+            </div>
+          </div>
+
+          {/* Report/Notes */}
+          <div>
+             <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                <FileText size={18} className="text-slate-400"/> Technicial Findings & Report
+            </h4>
+            <div className="p-4 bg-slate-50 rounded-lg text-sm text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-100">
+                {report.report || "No additional notes provided."}
+            </div>
+          </div>
+
         </div>
 
-        {/* Modal Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-          <button className="flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-100 transition-colors shadow-sm">
-            <Printer size={16} className="mr-2" />
-            Print
+        {/* Footer */}
+        <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-lg hover:bg-slate-100 transition-colors shadow-sm text-sm"
+          >
+            <Printer size={16} /> Print Report
           </button>
-          <button className="flex items-center px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm">
-            <Download size={16} className="mr-2" />
-            Download PDF
+          <button 
+            onClick={onClose} 
+            className="px-6 py-2 bg-slate-900 text-white font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-lg text-sm"
+          >
+            Close
           </button>
         </div>
 

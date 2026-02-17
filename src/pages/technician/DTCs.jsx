@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Filter, CheckCircle, FileText, AlertTriangle, Search } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
 import { useJobs } from '../../contexts/JobContext';
-import NoteModal from '../../components/NoteModal'; // <--- Import Modal
+import NoteModal from '../../components/NoteModal'; 
 
 const DTCs = () => {
-  const { dtcs, resolveDTC, stats } = useJobs();
+  const { dtcs, vehicles, resolveDTC, stats } = useJobs();
   
+  // Debug: Check your console (F12) to see the real data structure
+  useEffect(() => {
+    console.log("🔍 Live DTC Data:", dtcs); 
+  }, [dtcs]);
+
   // --- Modal State ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
@@ -15,26 +20,39 @@ const DTCs = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
 
+  // 1. ROBUST ID GETTER: Checks both 'vehicle' and 'vehicle_id'
+  const getVehicleId = (dtc) => dtc.vehicle || dtc.vehicle_id || 'Unknown';
+
+  // Helper to find plate number
+  const getPlate = (dtc) => {
+    const vId = getVehicleId(dtc);
+    const v = vehicles.find(veh => veh.id === vId);
+    return v ? v.plate : 'Unknown';
+  };
+
   const filteredDTCs = dtcs.filter(dtc => {
-    const matchesSeverity = filterSeverity === 'All' || dtc.severity === filterSeverity;
-    const matchesStatus = filterStatus === 'All' || dtc.status === filterStatus;
-    const matchesSearch = dtc.code.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          dtc.vehicle.toLowerCase().includes(searchTerm.toLowerCase());
+    const severity = dtc.severity || 'Unknown';
+    const status = dtc.status || 'Active';
+    const code = dtc.code || '';
+    const vId = getVehicleId(dtc); 
+
+    const matchesSeverity = filterSeverity === 'All' || severity === filterSeverity;
+    const matchesStatus = filterStatus === 'All' || status === filterStatus;
+    const matchesSearch = code.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          vId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSeverity && matchesStatus && matchesSearch;
   });
 
-  // Helper to open modal
   const handleOpenNote = (dtc) => {
     setModalData({
-      jobId: 'N/A', // DTCs might not always be linked to a Job ID yet
-      vehicle: dtc.vehicle,
-      type: 'Observation' // Default for diagnostics
+      vehicle: getVehicleId(dtc),
+      type: `DTC Note: ${dtc.code}` 
     });
     setIsModalOpen(true);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       {/* Header & Metrics */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
         <div className="flex items-start justify-between">
@@ -71,51 +89,58 @@ const DTCs = () => {
 
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
-              <th className="px-6 py-4">Code</th>
-              <th className="px-6 py-4">Vehicle</th>
-              <th className="px-6 py-4 w-1/3">Description</th>
-              <th className="px-6 py-4">Severity</th>
-              <th className="px-6 py-4">Timestamp</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredDTCs.map((dtc) => (
-              <tr key={dtc.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-mono font-bold text-slate-800">{dtc.code}</td>
-                <td className="px-6 py-4"><div className="font-medium text-slate-800">{dtc.vehicle}</div><div className="text-xs text-slate-500">{dtc.plate}</div></td>
-                <td className="px-6 py-4 text-sm text-slate-600">{dtc.desc}</td>
-                <td className="px-6 py-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${dtc.severity === 'Critical' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}>
-                    <AlertTriangle size={12} className="mr-1" />{dtc.severity}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-slate-500">{dtc.timestamp}</td>
-                <td className="px-6 py-4"><StatusBadge type={dtc.status} /></td>
-                <td className="px-6 py-4 text-right space-x-2">
-                  {dtc.status === 'Active' && (
-                    <button onClick={() => resolveDTC(dtc.id)} className="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
-                      <CheckCircle size={14} className="mr-1.5" /> Resolve
-                    </button>
-                  )}
-                  
-                  {/* --- Modal Trigger --- */}
-                  <button 
-                    onClick={() => handleOpenNote(dtc)}
-                    className="inline-flex items-center px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
-                  >
-                    <FileText size={14} className="mr-1.5" /> Notes
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
+                <th className="px-6 py-4">Code</th>
+                <th className="px-6 py-4">Vehicle</th>
+                <th className="px-6 py-4 w-1/3">Description</th>
+                <th className="px-6 py-4">Severity</th>
+                <th className="px-6 py-4">Timestamp</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {filteredDTCs.length === 0 && <div className="p-8 text-center text-slate-500">No DTCs found.</div>}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredDTCs.map((dtc) => (
+                <tr key={dtc.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4 font-mono font-bold text-slate-800">{dtc.code}</td>
+                  <td className="px-6 py-4">
+                    {/* Use the new safe getter function */}
+                    <div className="font-medium text-slate-800">{getVehicleId(dtc)}</div>
+                    <div className="text-xs text-slate-500">{getPlate(dtc)}</div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{dtc.description || dtc.desc || 'No description'}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${dtc.severity === 'Critical' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100'}`}>
+                      <AlertTriangle size={12} className="mr-1" />{dtc.severity}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-slate-500">
+                    {dtc.created_at ? new Date(dtc.created_at).toLocaleDateString() : 'N/A'}
+                  </td>
+                  <td className="px-6 py-4"><StatusBadge type={dtc.status} /></td>
+                  <td className="px-6 py-4 text-right space-x-2">
+                    {dtc.status === 'Active' && (
+                      <button onClick={() => resolveDTC(dtc.id)} className="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors">
+                        <CheckCircle size={14} className="mr-1.5" /> Resolve
+                      </button>
+                    )}
+                    
+                    <button 
+                      onClick={() => handleOpenNote(dtc)}
+                      className="inline-flex items-center px-3 py-1.5 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-medium rounded-lg transition-colors"
+                    >
+                      <FileText size={14} className="mr-1.5" /> Notes
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredDTCs.length === 0 && <div className="p-8 text-center text-slate-500">No DTCs found.</div>}
+        </div>
       </div>
 
       {/* --- Render Modal --- */}

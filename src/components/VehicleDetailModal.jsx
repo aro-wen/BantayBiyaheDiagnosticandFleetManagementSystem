@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
 import { 
   X, Activity, Gauge, Thermometer, Battery, Droplet, 
-  AlertTriangle, CheckCircle, MapPin, Navigation 
+  AlertTriangle, CheckCircle, MapPin 
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
+import { useJobs } from '../contexts/JobContext'; // <--- 1. Import Context
 
-// 1. Add 'showNavigation' to props and default it to TRUE (so Technician keeps it)
-const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true }) => {
+const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
+  const { dtcs } = useJobs(); // <--- 2. Get Global DTC List
   const [activeTab, setActiveTab] = useState('diagnostics');
 
   if (!isOpen || !vehicle) return null;
 
-  // Mock DTC logic (same as before)
-  const dtcCodes = vehicle.dtcCodes || [
-    { code: 'P0171', desc: 'System Too Lean (Bank 1)', severity: 'Critical' },
-    { code: 'P0420', desc: 'Catalyst System Efficiency Below Threshold', severity: 'Warning' }
-  ];
-  const hasDTCs = vehicle.status !== 'Normal';
+  // Filter DTCs for this specific vehicle
+  const vehicleDtcs = dtcs.filter(d => d.vehicle_id === vehicle.id);
+  const hasDTCs = vehicle.mil === 'ON' || vehicleDtcs.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -30,7 +28,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true })
               <StatusBadge type={vehicle.status} />
             </div>
             <p className="text-slate-500 font-medium">Plate: {vehicle.plate}</p>
-            <p className="text-xs text-slate-400 mt-1">Detailed diagnostics and location information.</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
             <X size={24} />
@@ -62,12 +59,39 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true })
           {/* TAB 1: DIAGNOSTICS */}
           {activeTab === 'diagnostics' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <DiagCard title="RPM" value="3200" unit="" icon={<Activity size={20} className="text-blue-500" />} />
-              <DiagCard title="Speed" value={vehicle.speed} unit="km/h" icon={<Gauge size={20} className="text-green-500" />} />
-              <DiagCard title="Coolant Temp" value={vehicle.temp} unit="°C" icon={<Thermometer size={20} className="text-orange-500" />} />
-              <DiagCard title="Battery" value="12.4" unit="V" icon={<Battery size={20} className="text-yellow-500" />} />
-              <DiagCard title="Fuel Level" value="35" unit="%" icon={<Droplet size={20} className="text-cyan-500" />} />
+              {/* Added '|| 0' so it shows '0' instead of blank if data is missing */}
+              <DiagCard 
+                title="RPM" 
+                value={vehicle.rpm || 0} 
+                unit="" 
+                icon={<Activity size={20} className="text-blue-500" />} 
+              />
+              <DiagCard 
+                title="Speed" 
+                value={vehicle.speed || 0} 
+                unit="km/h" 
+                icon={<Gauge size={20} className="text-green-500" />} 
+              />
+              <DiagCard 
+                title="Coolant Temp" 
+                value={vehicle.temp || 0} 
+                unit="°C" 
+                icon={<Thermometer size={20} className="text-orange-500" />} 
+              />
+              <DiagCard 
+                title="Battery" 
+                value={vehicle.battery || 0} 
+                unit="V" 
+                icon={<Battery size={20} className="text-yellow-500" />} 
+              />
+              <DiagCard 
+                title="Fuel Level" 
+                value={vehicle.fuel || 0} 
+                unit="%" 
+                icon={<Droplet size={20} className="text-cyan-500" />} 
+              />
               
+              {/* Check Engine Indicator */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
                 <div>
                   <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Check Engine</div>
@@ -82,29 +106,23 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true })
             </div>
           )}
 
-          {/* TAB 2: DTC CODES */}
+          {/* TAB 2: DTC CODES (Connected to DB) */}
           {activeTab === 'dtc' && (
             <div className="space-y-4">
-              {hasDTCs ? (
-                dtcCodes.map((dtc, idx) => (
-                  <div key={idx} className={`p-4 rounded-xl border flex items-start gap-4 ${
-                    dtc.severity === 'Critical' ? 'bg-red-50 border-red-100' : 'bg-yellow-50 border-yellow-100'
-                  }`}>
-                    <div className={`mt-1 p-1.5 rounded-full ${
-                      dtc.severity === 'Critical' ? 'bg-red-200 text-red-700' : 'bg-yellow-200 text-yellow-700'
-                    }`}>
+              {vehicleDtcs.length > 0 ? (
+                vehicleDtcs.map((dtc) => (
+                  <div key={dtc.id} className="p-4 rounded-xl border flex items-start gap-4 bg-red-50 border-red-100">
+                    <div className="mt-1 p-1.5 rounded-full bg-red-200 text-red-700">
                       <AlertTriangle size={18} />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-bold text-slate-800">{dtc.code}</span>
-                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          dtc.severity === 'Critical' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'
-                        }`}>
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-red-200 text-red-800">
                           {dtc.severity}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-600">{dtc.desc}</p>
+                      <p className="text-sm text-slate-600">{dtc.description}</p>
                     </div>
                   </div>
                 ))
@@ -120,7 +138,7 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true })
             </div>
           )}
 
-          {/* TAB 3: LOCATION */}
+          {/* TAB 3: LOCATION (Connected to DB) */}
           {activeTab === 'location' && (
             <div className="space-y-6">
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
@@ -132,18 +150,17 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, showNavigation = true })
                 <div className="grid grid-cols-2 gap-8 mb-6">
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase">Latitude</label>
-                    <div className="text-xl font-mono text-slate-800">{vehicle.lat || '14.5995'}° N</div>
+                    <div className="text-xl font-mono text-slate-800">{vehicle.lat}° N</div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase">Longitude</label>
-                    <div className="text-xl font-mono text-slate-800">{vehicle.lng || '120.9842'}° E</div>
+                    <div className="text-xl font-mono text-slate-800">{vehicle.lng}° E</div>
                   </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-6">
                   <label className="text-xs font-bold text-slate-400 uppercase">Current Address</label>
                   <div className="text-lg text-slate-800 mt-1">{vehicle.address}</div>
-                  <div className="text-xs text-slate-400 mt-1">Last Updated: {vehicle.lastUpdate}</div>
                 </div>
               </div>
             </div>
