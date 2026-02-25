@@ -3,19 +3,34 @@ import { Search, Filter, Truck, MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import StatusBadge from '../../components/StatusBadge';
-import { useJobs } from '../../contexts/JobContext'; // Keep Live Data
-import VehicleDetailModal from '../../components/VehicleDetailModal'; // Back to Monitoring Modal
+import { useJobs } from '../../contexts/JobContext'; // Live Data Context
+import VehicleDetailModal from '../../components/VehicleDetailModal'; 
 
-// --- LEAFLET ICON FIX ---
-import iconMarker from 'leaflet/dist/images/marker-icon.png';
-import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+// --- DYNAMIC REAL-TIME MAP MARKERS ---
+// This replaces the static blue pins with glowing colored dots matching the vehicle status
+const getMarkerIcon = (status) => {
+  let colorClass = 'bg-green-500 shadow-green-500/50'; // Default Normal
+  
+  const s = status?.toLowerCase();
+  if (s === 'warning' || s === 'maintenance') {
+    colorClass = 'bg-yellow-500 shadow-yellow-500/50';
+  } else if (s === 'critical' || s === 'offline') {
+    colorClass = 'bg-red-500 shadow-red-500/50';
+  }
 
-const DefaultIcon = L.icon({
-    iconUrl: iconMarker, iconRetinaUrl: iconRetina, shadowUrl: iconShadow,
-    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+  return L.divIcon({
+    className: 'bg-transparent border-none',
+    html: `
+      <div class="relative flex items-center justify-center w-8 h-8">
+        <div class="absolute w-full h-full bg-white rounded-full shadow-md border-2 border-slate-200"></div>
+        <div class="absolute w-3.5 h-3.5 rounded-full ${colorClass} animate-pulse shadow-lg"></div>
+      </div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16]
+  });
+};
 
 const DispatcherVehicles = () => {
   const { vehicles } = useJobs(); 
@@ -54,22 +69,29 @@ const DispatcherVehicles = () => {
             Live Fleet Map
           </h2>
           <div className="flex gap-3 text-xs font-medium">
-            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-500 mr-1.5"></div> Normal</span>
-            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5"></div> Warning</span>
-            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></div> Critical</span>
+            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-500 mr-1.5 animate-pulse"></div> Normal</span>
+            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5 animate-pulse"></div> Warning</span>
+            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5 animate-pulse"></div> Critical</span>
           </div>
         </div>
         
         <div className="h-[350px] w-full relative z-0">
+          {/* Coordinates set to Manila based on your thesis scope */}
           <MapContainer center={[14.6091, 121.0223]} zoom={11} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
             <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            
             {filteredVehicles.map((vehicle) => (
               (vehicle.lat && vehicle.lng) ? (
-                <Marker key={vehicle.id} position={[vehicle.lat, vehicle.lng]}>
+                <Marker 
+                  key={vehicle.id} 
+                  position={[vehicle.lat, vehicle.lng]}
+                  icon={getMarkerIcon(vehicle.status)} // DYNAMIC ICON PLACED HERE
+                >
                   <Popup>
                     <div className="text-center p-1">
                       <div className="font-bold text-slate-800">{vehicle.id}</div>
                       <div className="text-xs text-slate-500 mb-2">{vehicle.plate}</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">{vehicle.status}</div>
                       <button 
                         onClick={() => openModal(vehicle)}
                         className="text-blue-600 text-xs font-bold hover:underline"
@@ -97,7 +119,7 @@ const DispatcherVehicles = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
         </div>
-        <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center shadow-sm">
+        <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 flex items-center shadow-sm font-medium">
             <Filter size={18} className="mr-2" /> Filter
         </button>
       </div>
@@ -107,8 +129,8 @@ const DispatcherVehicles = () => {
         {filteredVehicles.map((vehicle) => (
           <div 
             key={vehicle.id} 
-            onClick={() => openModal(vehicle)} // CLICK OPENS DETAILS AGAIN
-            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+            onClick={() => openModal(vehicle)}
+            className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg transition-all cursor-pointer group hover:border-blue-300"
           >
             <div className="flex justify-between items-start mb-4">
               <div className="flex items-center gap-3">
@@ -126,17 +148,17 @@ const DispatcherVehicles = () => {
             <div className="space-y-2 border-t border-slate-100 pt-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Speed</span>
-                <span className="font-medium text-slate-800">{vehicle.speed || 0} km/h</span>
+                <span className="font-medium text-slate-800 font-mono">{vehicle.speed || 0} km/h</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Temp</span>
-                <span className={`font-medium ${(vehicle.temp || 0) > 100 ? 'text-red-600' : 'text-slate-800'}`}>
-                  {vehicle.temp || 0}°C
+                <span className={`font-medium font-mono ${(vehicle.coolant_temp || vehicle.temp || 0) > 100 ? 'text-red-600 animate-pulse font-bold' : 'text-slate-800'}`}>
+                  {vehicle.coolant_temp || vehicle.temp || 0}°C
                 </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Location</span>
-                <span className="font-medium text-slate-800 truncate max-w-[120px]">
+                <span className="font-medium text-slate-800 truncate max-w-[120px]" title={vehicle.address}>
                     {vehicle.address ? vehicle.address.split(',')[0] : 'Unknown'}
                 </span>
               </div>

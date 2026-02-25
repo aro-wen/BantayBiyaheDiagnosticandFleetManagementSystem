@@ -3,14 +3,16 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Search, Filter, MapPin, Truck } from 'lucide-react';
 import StatusBadge from '../../components/StatusBadge';
 import VehicleDetailModal from '../../components/VehicleDetailModal';
-import { useJobs } from '../../contexts/JobContext'; // <--- 1. IMPORT CONTEXT
+import { useJobs } from '../../contexts/JobContext'; 
+// 1. IMPORT YOUR CONFIG
+import { getStatusColor } from '../../config/thresholds'; 
 import L from 'leaflet';
 
 // --- LEAFLET ICON FIX ---
 import iconMarker from 'leaflet/dist/images/marker-icon.png';
 import iconRetina from 'leaflet/dist/images/marker-icon-2x.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-import 'leaflet/dist/leaflet.css'; // Don't forget CSS!
+import 'leaflet/dist/leaflet.css'; 
 
 const DefaultIcon = L.icon({
   iconUrl: iconMarker,
@@ -24,7 +26,7 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const VehicleHealth = () => {
-  const { vehicles } = useJobs(); // <--- 2. GET REAL DATA
+  const { vehicles } = useJobs(); // 🔥 Subscribed via Context automatically
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,14 +36,12 @@ const VehicleHealth = () => {
     setIsModalOpen(true);
   };
 
-  // Filter Logic (Applied to REAL vehicles)
   const filteredVehicles = vehicles.filter(v => 
     v.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
     (v.plate && v.plate.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Default Center (Manila)
-  const mapCenter = [14.6091, 121.0223];
+  const mapCenter = [14.6091, 121.0223]; // Manila
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -55,12 +55,11 @@ const VehicleHealth = () => {
           </h2>
           <div className="flex gap-3 text-xs font-medium">
             <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-green-500 mr-1.5"></div> Normal</span>
-            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-yellow-500 mr-1.5"></div> Warning</span>
+            <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-orange-500 mr-1.5"></div> Warning</span>
             <span className="flex items-center"><div className="w-2.5 h-2.5 rounded-full bg-red-500 mr-1.5"></div> Critical</span>
           </div>
         </div>
         
-        {/* The Map Container */}
         <div className="h-[400px] w-full relative z-0">
           <MapContainer 
             center={mapCenter} 
@@ -69,31 +68,22 @@ const VehicleHealth = () => {
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              attribution='&copy; OpenStreetMap'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {/* RENDER MARKERS FROM REAL DATA */}
             {filteredVehicles.map((vehicle) => (
-              // Only render marker if vehicle has valid GPS data
               (vehicle.lat && vehicle.lng) ? (
                 <Marker 
                   key={vehicle.id} 
                   position={[vehicle.lat, vehicle.lng]}
-                  eventHandlers={{
-                    click: () => openModal(vehicle),
-                  }}
+                  eventHandlers={{ click: () => openModal(vehicle) }}
                 >
                   <Popup>
                     <div className="text-center p-1">
                       <div className="font-bold text-slate-800">{vehicle.id}</div>
                       <div className="text-xs text-slate-500 mb-1">{vehicle.plate}</div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold text-white ${
-                          vehicle.status === 'Critical' ? 'bg-red-500' : 
-                          vehicle.status === 'Warning' ? 'bg-yellow-500' : 'bg-green-500'
-                      }`}>
-                          {vehicle.status.toUpperCase()}
-                      </span>
+                      <StatusBadge type={vehicle.status} />
                     </div>
                   </Popup>
                 </Marker>
@@ -134,7 +124,7 @@ const VehicleHealth = () => {
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                   <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
                     <Truck size={20} />
                   </div>
                   <div>
@@ -158,14 +148,15 @@ const VehicleHealth = () => {
                   </div>
                   <div className="flex justify-between text-sm">
                       <span className="text-slate-500">Temp</span>
-                      <span className={`font-medium ${(vehicle.temp || 0) > 100 ? 'text-red-500' : 'text-green-600'}`}>
+                      {/* 🔥 UPDATED: Use Modular Helper Logic */}
+                      <span className={`font-medium ${getStatusColor(vehicle.temp || 0, 'TEMP')}`}>
                           {vehicle.temp || 0}°C
                       </span>
                   </div>
                 </div>
                 
                 <div className="pt-2 text-xs text-slate-400 text-right">
-                  Updated {vehicle.last_update || 'Recently'}
+                  Updated {vehicle.last_update ? new Date(vehicle.last_update).toLocaleTimeString() : 'Recently'}
                 </div>
               </div>
             </div>

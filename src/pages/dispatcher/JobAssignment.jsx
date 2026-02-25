@@ -14,12 +14,20 @@ const JobAssignment = () => {
 
   // --- 1. CALCULATE METRICS DYNAMICALLY ---
   const activeJobsCount = jobs.filter(j => j.status === 'In Progress' || j.status === 'Pending').length;
-  const completedTodayCount = jobs.filter(j => j.status === 'Completed').length; // Ideally filter by date too
+  
+  // 🔥 FIX 1: Actual "Completed Today" logic
+  const today = new Date().toISOString().split('T')[0]; // Gets 'YYYY-MM-DD'
+  const completedTodayCount = jobs.filter(j => {
+    if (j.status !== 'Completed') return false;
+    const jobDate = j.created_at ? j.created_at.split('T')[0] : null;
+    return jobDate === today;
+  }).length; 
+
   const upcomingCount = jobs.filter(j => j.status === 'Pending').length;
 
   // --- 2. FILTER & SORT LOGIC ---
-  const filteredJobs = jobs
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) // Sort Newest First
+  const filteredJobs = [...jobs] // 🔥 FIX 2: Added [...] to prevent mutating the global Context array!
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)) // Sort Newest First
     .filter(job => {
       // Search Logic
       const searchLower = searchTerm.toLowerCase();
@@ -108,7 +116,7 @@ const JobAssignment = () => {
           <select 
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50"
+            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
           >
             <option value="All Status">All Status</option>
             <option value="Pending">Pending</option>
@@ -119,7 +127,7 @@ const JobAssignment = () => {
           <select 
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value)}
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50"
+            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 focus:outline-none cursor-pointer hover:bg-slate-50 transition-colors"
           >
             <option value="All Priority">All Priority</option>
             <option value="High">High</option>
@@ -194,7 +202,7 @@ const JobAssignment = () => {
                       {job.description || job.desc || 'Routine checkup'}
                     </td>
 
-                    {/* Created At (FIXED) */}
+                    {/* Created At */}
                     <td className="px-6 py-4 text-sm text-slate-500 text-right font-mono">
                       {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'N/A'}
                     </td>
@@ -217,7 +225,6 @@ const JobAssignment = () => {
       <CreateJobModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        // Note: vehicle is optional here, Modal handles empty vehicle selection if implemented
         vehicle={null} 
       />
 

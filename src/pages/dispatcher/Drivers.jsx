@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Car, Navigation, Map, Plus, Search, Filter } from 'lucide-react';
+import { Users, Car, Navigation, Map, Plus, Search, Filter, Loader2 } from 'lucide-react';
 import { useJobs } from '../../contexts/JobContext';
 import StatusBadge from '../../components/StatusBadge';
 import AssignVehicleModal from '../../components/AssignVehicleModal';
@@ -11,15 +11,28 @@ const Drivers = () => {
   const [modalDriverId, setModalDriverId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
+  
+  const [processingId, setProcessingId] = useState(null);
 
-  // --- KPI CALCULATIONS ---
-  const totalDrivers = drivers.length;
-  const assignedDrivers = drivers.filter(d => d.vehicle && d.vehicle !== 'Not assigned').length;
-  const activeDrivers = drivers.filter(d => d.status === 'Active').length;
-  const totalTrips = drivers.reduce((acc, curr) => acc + (curr.trips || 0), 0);
+  // 🔥 THE FIX: Local state to instantly update the UI before the DB finishes syncing
+  const [optimisticOverrides, setOptimisticOverrides] = useState({});
+
+  // Map over the real drivers and apply any instant optimistic changes
+  const displayDrivers = useMemo(() => {
+    return drivers.map(d => ({
+      ...d,
+      vehicle: optimisticOverrides[d.id] !== undefined ? optimisticOverrides[d.id] : d.vehicle
+    }));
+  }, [drivers, optimisticOverrides]);
+
+  // --- KPI CALCULATIONS (Now using displayDrivers for instant updates) ---
+  const totalDrivers = displayDrivers.length;
+  const assignedDrivers = displayDrivers.filter(d => d.vehicle && d.vehicle !== 'Not assigned').length;
+  const activeDrivers = displayDrivers.filter(d => d.status === 'Active').length;
+  const totalTrips = displayDrivers.reduce((acc, curr) => acc + (curr.trips || 0), 0);
 
   // --- FILTERING LOGIC ---
-  const filteredDrivers = drivers.filter(driver => {
+  const filteredDrivers = displayDrivers.filter(driver => {
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = 
       driver.name.toLowerCase().includes(searchLower) ||
@@ -29,22 +42,19 @@ const Drivers = () => {
   });
 
   // --- VEHICLE AVAILABILITY LOGIC ---
-  // 1. Get list of taken Vehicle IDs
   const takenVehicleIds = useMemo(() => 
-    drivers
+    displayDrivers
       .map(d => d.vehicle)
       .filter(v => v && v !== 'Not assigned'), 
-  [drivers]);
+  [displayDrivers]);
 
-  // 2. Filter Master List: If it's NOT in the taken list, it's available.
   const availableVehicles = useMemo(() => 
     vehicles.filter(v => !takenVehicleIds.includes(v.id)), 
   [vehicles, takenVehicleIds]);
 
-  // 3. Available Drivers (Unassigned OR the specific one selected)
   const availableDrivers = useMemo(() => 
-    drivers.filter(d => !d.vehicle || d.vehicle === 'Not assigned' || d.id === modalDriverId),
-  [drivers, modalDriverId]);
+    displayDrivers.filter(d => !d.vehicle || d.vehicle === 'Not assigned' || d.id === modalDriverId),
+  [displayDrivers, modalDriverId]);
 
   // --- HANDLERS ---
   const openAssignModal = (driverId = '') => {
@@ -52,9 +62,28 @@ const Drivers = () => {
     setIsModalOpen(true);
   };
 
-  const handleUnassignClick = (id) => {
+  const handleUnassignClick = async (id) => {
     if (window.confirm('Are you sure you want to unassign this vehicle?')) {
-      unassignDriver(id);
+      setProcessingId(id); 
+      // 🔥 OPTIMISTIC UPDATE: Instantly clear the vehicle from the UI
+      setOptimisticOverrides(prev => ({ ...prev, [id]: 'Not assigned' }));
+      try {
+        await unassignDriver(id);
+      } finally {
+        setProcessingId(null); 
+      }
+    }
+  };
+
+  const handleAssignConfirm = async (driverId, vehicleId) => {
+    setIsModalOpen(false);
+    setProcessingId(driverId); 
+    // 🔥 OPTIMISTIC UPDATE: Instantly show the new vehicle in the UI
+    setOptimisticOverrides(prev => ({ ...prev, [driverId]: vehicleId }));
+    try {
+      await assignDriver(driverId, vehicleId);
+    } finally {
+      setProcessingId(null); 
     }
   };
 
@@ -136,7 +165,11 @@ const Drivers = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredDrivers.map((driver) => (
+              {filteredDrivers.map((driver) => {
+                const isProcessing = processingId === driver.id;
+                const isAssigned = driver.vehicle && driver.vehicle !== 'Not assigned';
+
+                return (
                 <tr key={driver.id} className="hover:bg-slate-50 transition-colors">
                   
                   {/* Driver Info */}
@@ -147,7 +180,7 @@ const Drivers = () => {
 
                   {/* Vehicle Info */}
                   <td className="px-6 py-4">
-                    {driver.vehicle && driver.vehicle !== 'Not assigned' ? (
+                    {isAssigned ? (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100">
                         <Car size={14} /> {driver.vehicle}
                       </span>
@@ -168,9 +201,14 @@ const Drivers = () => {
 
                   {/* Action Buttons */}
                   <td className="px-6 py-4 text-right">
-                    {driver.vehicle && driver.vehicle !== 'Not assigned' ? (
+                    {isProcessing ? (
+                       <span className="inline-flex items-center gap-1 text-xs font-bold text-slate-400 px-3 py-1.5">
+                         <Loader2 size={14} className="animate-spin" /> Updating...
+                       </span>
+                    ) : isAssigned ? (
                       <button 
                         onClick={() => handleUnassignClick(driver.id)}
+                        disabled={isProcessing}
                         className="text-xs font-bold text-red-600 hover:text-red-800 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
                       >
                         Unassign
@@ -178,6 +216,7 @@ const Drivers = () => {
                     ) : (
                       <button 
                         onClick={() => openAssignModal(driver.id)}
+                        disabled={isProcessing}
                         className="text-xs font-bold text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
                       >
                         Assign
@@ -186,7 +225,7 @@ const Drivers = () => {
                   </td>
 
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
           
@@ -202,7 +241,7 @@ const Drivers = () => {
       <AssignVehicleModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConfirm={assignDriver}
+        onConfirm={handleAssignConfirm}
         drivers={availableDrivers}
         vehicles={availableVehicles}
         preSelectedDriverId={modalDriverId}

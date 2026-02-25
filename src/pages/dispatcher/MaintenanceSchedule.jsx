@@ -7,14 +7,45 @@ const MaintenanceSchedule = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // --- FETCH DATA ---
+  // --- FETCH DATA & REALTIME SUBSCRIPTION ---
   useEffect(() => {
     fetchSchedules();
+
+    // 🔥 THE FIX: Listen specifically to the maintenance_schedules table
+    const scheduleChannel = supabase
+      .channel('maintenance-schedules-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'maintenance_schedules' },
+        (payload) => {
+          console.log('🔥 Schedule Updated:', payload);
+          
+          setSchedules(currentSchedules => {
+            let updated = [...currentSchedules];
+            
+            if (payload.eventType === 'INSERT') {
+              updated.push(payload.new);
+            } else if (payload.eventType === 'UPDATE') {
+              updated = updated.map(item => item.id === payload.new.id ? payload.new : item);
+            } else if (payload.eventType === 'DELETE') {
+              updated = updated.filter(item => item.id !== payload.old.id);
+            }
+
+            // Always re-sort dynamically so the most urgent dates stay at the top!
+            return updated.sort((a, b) => new Date(a.next_due_date || 0) - new Date(b.next_due_date || 0));
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(scheduleChannel);
+    };
   }, []);
 
   const fetchSchedules = async () => {
     setLoading(true);
-    // Fetch schedules and order by "Next Due Date" so urgent stuff is on top
     const { data, error } = await supabase
       .from('maintenance_schedules')
       .select('*')
@@ -29,10 +60,9 @@ const MaintenanceSchedule = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to remove this maintenance rule?")) return;
     
-    const { error } = await supabase.from('maintenance_schedules').delete().eq('id', id);
-    if (!error) {
-      setSchedules(prev => prev.filter(s => s.id !== id));
-    }
+    // We only need to talk to the database here.
+    // The Realtime listener above will catch the DELETE event and instantly remove it from the screen.
+    await supabase.from('maintenance_schedules').delete().eq('id', id);
   };
 
   // --- HELPER: CALCULATE STATUS ---
@@ -51,8 +81,8 @@ const MaintenanceSchedule = () => {
 
   // --- FILTERING ---
   const filteredSchedules = schedules.filter(s => 
-    s.vehicle_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.service_type.toLowerCase().includes(searchTerm.toLowerCase())
+    s.vehicle_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.service_type?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -107,11 +137,11 @@ const MaintenanceSchedule = () => {
                       <td className="px-6 py-4 text-sm font-medium text-slate-700">{item.service_type}</td>
                       <td className="px-6 py-4 text-xs text-slate-500">Every {item.interval_days} Days</td>
                       
-                      <td className="px-6 py-4 text-sm text-slate-500">
+                      <td className="px-6 py-4 text-sm text-slate-500 font-mono">
                         {item.last_service_date ? new Date(item.last_service_date).toLocaleDateString() : <span className="text-red-400 italic">Unknown</span>}
                       </td>
                       
-                      <td className="px-6 py-4 text-sm font-bold text-slate-800">
+                      <td className="px-6 py-4 text-sm font-bold text-slate-800 font-mono">
                         {new Date(item.next_due_date).toLocaleDateString()}
                       </td>
 

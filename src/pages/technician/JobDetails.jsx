@@ -79,17 +79,18 @@ const JobDetails = () => {
     setIsSubmitting(true);
 
     // A. Create the Detailed Note Content
-    // We format it nicely so it looks good in the history list
     const noteContent = `[${job.id}] COMPLETED. 
     Diagnosis: ${reportData.diagnosis || 'Routine Maintenance'}. 
     Action: ${reportData.actionTaken}. 
     Parts: ${reportData.partsUsed || 'None'}.`;
 
-    // B. Save the Note
+    // B. Save the Note (🔥 NOW WITH JOB_ID LINKED! 🔥)
     await addNote({
       vehicle: job.vehicle,
       type: 'Service Record',
-      content: noteContent
+      content: noteContent,
+      job_id: job.id,         // <--- THE FIX IS HERE
+      tech: 'Juan dela Cruz'  // Assuming current user
     });
 
     // C. Mark Job as Complete
@@ -97,7 +98,8 @@ const JobDetails = () => {
 
     setIsSubmitting(false);
     setIsCompleteModalOpen(false);
-    // Optional: navigate back or stay here
+    // Optional: navigate back
+    // navigate('/technician/jobs'); 
   };
 
   // --- VIEW: LOADING ---
@@ -123,7 +125,7 @@ const JobDetails = () => {
             </button>
           )}
           {job.status === 'In Progress' && (
-            // CHANGED: Now opens the Modal instead of completing immediately
+            // Opens the Modal
             <button onClick={() => setIsCompleteModalOpen(true)} className="bg-green-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-green-700 transition-colors shadow-sm flex items-center gap-2">
               <CheckCircle size={18} /> Mark Complete
             </button>

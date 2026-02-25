@@ -1,21 +1,53 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   AlertTriangle, CheckCircle, Clock, Truck, 
   Activity, ChevronRight, BarChart3 
 } from 'lucide-react';
 import { useJobs } from '../../contexts/JobContext';
 import { Link } from 'react-router-dom';
-// Ensure this path matches where you created the widget
-import MaintenanceWidget from '../../components//MaintenanceWidget'; 
+import MaintenanceWidget from '../../components/MaintenanceWidget'; 
+// 1. IMPORT THE MODAL
+import VehicleDetailModal from '../../components/VehicleDetailModal';
 
 const DispatcherDashboard = () => {
-  // 1. Get Live Stats and Data
-  const { stats, alerts, vehicles } = useJobs();
+  const { vehicles, alerts, jobs, drivers } = useJobs();
 
-  // 2. Prepare "Critical Vehicles" list (Case insensitive check)
+  // --- MODAL STATE ---
+  const [selectedVehicle, setSelectedVehicle] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Helper to open modal
+  const handleOpenVehicleDetail = (vehicle) => {
+    setSelectedVehicle(vehicle);
+    setIsModalOpen(true);
+  };
+
+  // --- KPI LOGIC ---
+  const activeVehiclesCount = drivers.filter(d => 
+    d.status === 'Active' && d.vehicle && d.vehicle !== 'Not assigned'
+  ).length;
+
+  const activeJobsCount = jobs.filter(j => 
+    ['In Progress', 'Pending'].includes(j.status)
+  ).length;
+
+  const unreadAlertsCount = alerts.filter(a => 
+    a.status === 'Unread'
+  ).length;
+
+  // --- CHART LOGIC ---
   const criticalVehicles = vehicles.filter(v => 
-    ['critical', 'warning', 'maintenance'].includes(v.status?.toLowerCase())
+    ['critical', 'warning', 'offline'].includes(v.status?.toLowerCase())
   );
+  
+  const healthyVehiclesCount = vehicles.filter(v => 
+    ['normal', 'idle', 'active'].includes(v.status?.toLowerCase())
+  ).length;
+
+  const maintenanceVehiclesCount = vehicles.filter(v => 
+    v.status?.toLowerCase() === 'maintenance'
+  ).length;
+
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -34,32 +66,32 @@ const DispatcherDashboard = () => {
         </div>
       </div>
 
-      {/* KPI Cards (CONNECTED TO LIVE DATA) */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatCard 
           title="Active Vehicles" 
-          value={stats.activeVehicles || 0} 
+          value={activeVehiclesCount} 
           subtitle="On the road" 
           icon={<Truck size={20} />} 
           color="blue" 
         />
         <StatCard 
           title="Critical Issues" 
-          value={stats.criticalVehicles || 0} 
+          value={criticalVehicles.length} 
           subtitle="Requires attention" 
           icon={<AlertTriangle size={20} />} 
           color="red" 
         />
         <StatCard 
           title="Active Jobs" 
-          value={(stats.inProgress || 0) + (stats.pending || 0)} 
+          value={activeJobsCount} 
           subtitle="Maintenance tasks" 
           icon={<Activity size={20} />} 
           color="orange" 
         />
         <StatCard 
           title="Unread Alerts" 
-          value={stats.unreadAlerts || 0} 
+          value={unreadAlertsCount} 
           subtitle="New notifications" 
           icon={<Clock size={20} />} 
           color="slate" 
@@ -69,63 +101,62 @@ const DispatcherDashboard = () => {
       {/* MIDDLE SECTION: Charts & Maintenance */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
     
-        {/* Fleet Status Overview (Placeholder for a Chart) */}
+        {/* Fleet Status Overview */}
         <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-slate-800 flex items-center gap-2">
               <BarChart3 size={18} className="text-slate-400" />
-              Fleet Status Distribution
+              Engine Health Distribution
             </h3>
           </div>
           
-          {/* Simple Visual Bar to replace the empty chart */}
           <div className="flex-1 flex flex-col justify-center gap-6">
              {/* Status Bar: Normal */}
              <div>
                <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
-                 <span>Normal Operation</span>
-                 <span>{vehicles.filter(v => v.status === 'Normal' || v.status === 'Active').length} Vehicles</span>
+                 <span>Healthy / Nominal</span>
+                 <span>{healthyVehiclesCount} Vehicles</span>
                </div>
                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                 <div className="bg-green-500 h-full rounded-full" style={{ width: '75%' }}></div>
+                 <div className="bg-green-500 h-full rounded-full transition-all duration-500" style={{ width: `${(healthyVehiclesCount / Math.max(vehicles.length, 1)) * 100}%` }}></div>
                </div>
              </div>
 
              {/* Status Bar: Maintenance */}
              <div>
                <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
-                 <span>In Maintenance</span>
-                 <span>{vehicles.filter(v => v.status === 'Maintenance').length} Vehicles</span>
+                 <span>In Shop / Maintenance</span>
+                 <span>{maintenanceVehiclesCount} Vehicles</span>
                </div>
                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                 <div className="bg-orange-400 h-full rounded-full" style={{ width: '15%' }}></div>
+                 <div className="bg-orange-400 h-full rounded-full transition-all duration-500" style={{ width: `${(maintenanceVehiclesCount / Math.max(vehicles.length, 1)) * 100}%` }}></div>
                </div>
              </div>
 
              {/* Status Bar: Critical */}
              <div>
                <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
-                 <span>Critical / Offline</span>
+                 <span>Critical Faults</span>
                  <span>{criticalVehicles.length} Vehicles</span>
                </div>
                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                 <div className="bg-red-500 h-full rounded-full" style={{ width: '5%' }}></div>
+                 <div className="bg-red-500 h-full rounded-full transition-all duration-500" style={{ width: `${(criticalVehicles.length / Math.max(vehicles.length, 1)) * 100}%` }}></div>
                </div>
              </div>
           </div>
         </div>
 
-        {/* NEW: Maintenance Widget (Takes up 1 column on the right) */}
+        {/* Maintenance Widget */}
         <div className="lg:col-span-1">
            <MaintenanceWidget />
         </div>
 
       </div>
 
-      {/* BOTTOM SECTION: Alerts & Health */}
+      {/* BOTTOM SECTION: Alerts & Critical List */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left Column: Recent Alerts (Live Data) */}
+        {/* Left Column: Recent Alerts */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
             <h3 className="font-bold text-slate-800">Recent Alerts</h3>
@@ -135,7 +166,7 @@ const DispatcherDashboard = () => {
             {alerts && alerts.slice(0, 4).map((alert) => (
               <div key={alert.id} className="p-4 flex items-start gap-4 hover:bg-slate-50 transition-colors">
                 <div className={`mt-1 p-2 rounded-lg ${
-                  alert.priority === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                  alert.type === 'Critical' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
                 }`}>
                   <AlertTriangle size={16} />
                 </div>
@@ -156,7 +187,7 @@ const DispatcherDashboard = () => {
           </div>
         </div>
 
-        {/* Right Column: Critical Vehicle List */}
+        {/* Right Column: Critical Vehicle List (UPDATED) */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="px-6 py-4 border-b border-slate-100">
             <h3 className="font-bold text-slate-800">Critical Vehicles</h3>
@@ -165,7 +196,12 @@ const DispatcherDashboard = () => {
             {criticalVehicles.length > 0 ? (
               <div className="space-y-3">
                 {criticalVehicles.map(v => (
-                  <div key={v.id} className="flex items-center gap-3 p-3 rounded-lg border border-red-100 bg-red-50">
+                  // 🔥 UPDATED: Click handler added here instead of Link
+                  <div 
+                    key={v.id} 
+                    onClick={() => handleOpenVehicleDetail(v)}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-red-100 bg-red-50 cursor-pointer hover:bg-red-100 transition-colors group"
+                  >
                     <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
                     <div className="flex-1">
                       <div className="flex justify-between">
@@ -174,9 +210,8 @@ const DispatcherDashboard = () => {
                       </div>
                       <p className="text-xs text-slate-500 truncate">{v.plate || 'No Plate'}</p>
                     </div>
-                    <Link to={`/dispatcher/vehicles/${v.id}`}>
-                      <ChevronRight size={16} className="text-red-300 hover:text-red-500 cursor-pointer" />
-                    </Link>
+                    {/* Icon is now just visual, action is handled by parent div */}
+                    <ChevronRight size={16} className="text-red-300 group-hover:text-red-500 transition-colors" />
                   </div>
                 ))}
               </div>
@@ -199,6 +234,14 @@ const DispatcherDashboard = () => {
         </div>
 
       </div>
+
+      {/* 2. ADD THE MODAL COMPONENT */}
+      <VehicleDetailModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        vehicle={selectedVehicle}
+      />
+
     </div>
   );
 };

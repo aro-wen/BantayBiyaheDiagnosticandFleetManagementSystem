@@ -4,17 +4,21 @@ import {
   AlertTriangle, CheckCircle, MapPin 
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { useJobs } from '../contexts/JobContext'; // <--- 1. Import Context
+import { useJobs } from '../contexts/JobContext'; 
 
 const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
-  const { dtcs } = useJobs(); // <--- 2. Get Global DTC List
+  // 1. Pull the live 'vehicles' array from context alongside dtcs
+  const { dtcs, vehicles } = useJobs(); 
   const [activeTab, setActiveTab] = useState('diagnostics');
 
   if (!isOpen || !vehicle) return null;
 
+  // 🔥 THE FIX: Find the live, real-time version of this vehicle from the context
+  const liveVehicle = vehicles.find(v => v.id === vehicle.id) || vehicle;
+
   // Filter DTCs for this specific vehicle
-  const vehicleDtcs = dtcs.filter(d => d.vehicle_id === vehicle.id);
-  const hasDTCs = vehicle.mil === 'ON' || vehicleDtcs.length > 0;
+  const vehicleDtcs = dtcs.filter(d => d.vehicle_id === liveVehicle.id);
+  const hasDTCs = liveVehicle.mil === 'ON' || vehicleDtcs.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -24,10 +28,10 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
         <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start bg-white">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-2xl font-bold text-slate-900">{vehicle.id}</h2>
-              <StatusBadge type={vehicle.status} />
+              <h2 className="text-2xl font-bold text-slate-900">{liveVehicle.id}</h2>
+              <StatusBadge type={liveVehicle.status} />
             </div>
-            <p className="text-slate-500 font-medium">Plate: {vehicle.plate}</p>
+            <p className="text-slate-500 font-medium">Plate: {liveVehicle.plate}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
             <X size={24} />
@@ -59,34 +63,33 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
           {/* TAB 1: DIAGNOSTICS */}
           {activeTab === 'diagnostics' && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Added '|| 0' so it shows '0' instead of blank if data is missing */}
               <DiagCard 
                 title="RPM" 
-                value={vehicle.rpm || 0} 
+                value={liveVehicle.rpm || 0} 
                 unit="" 
                 icon={<Activity size={20} className="text-blue-500" />} 
               />
               <DiagCard 
                 title="Speed" 
-                value={vehicle.speed || 0} 
+                value={liveVehicle.speed || 0} 
                 unit="km/h" 
                 icon={<Gauge size={20} className="text-green-500" />} 
               />
               <DiagCard 
                 title="Coolant Temp" 
-                value={vehicle.temp || 0} 
+                value={liveVehicle.coolant_temp || liveVehicle.temp || 0} 
                 unit="°C" 
                 icon={<Thermometer size={20} className="text-orange-500" />} 
               />
               <DiagCard 
                 title="Battery" 
-                value={vehicle.battery || 0} 
+                value={liveVehicle.battery_voltage || liveVehicle.battery || 0} 
                 unit="V" 
                 icon={<Battery size={20} className="text-yellow-500" />} 
               />
               <DiagCard 
                 title="Fuel Level" 
-                value={vehicle.fuel || 0} 
+                value={liveVehicle.fuel_level || liveVehicle.fuel || 0} 
                 unit="%" 
                 icon={<Droplet size={20} className="text-cyan-500" />} 
               />
@@ -150,17 +153,17 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                 <div className="grid grid-cols-2 gap-8 mb-6">
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase">Latitude</label>
-                    <div className="text-xl font-mono text-slate-800">{vehicle.lat}° N</div>
+                    <div className="text-xl font-mono text-slate-800">{liveVehicle.lat || 0}° N</div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase">Longitude</label>
-                    <div className="text-xl font-mono text-slate-800">{vehicle.lng}° E</div>
+                    <div className="text-xl font-mono text-slate-800">{liveVehicle.lng || 0}° E</div>
                   </div>
                 </div>
 
                 <div className="border-t border-slate-100 pt-6">
                   <label className="text-xs font-bold text-slate-400 uppercase">Current Address</label>
-                  <div className="text-lg text-slate-800 mt-1">{vehicle.address}</div>
+                  <div className="text-lg text-slate-800 mt-1">{liveVehicle.address || 'Location unavailable'}</div>
                 </div>
               </div>
             </div>

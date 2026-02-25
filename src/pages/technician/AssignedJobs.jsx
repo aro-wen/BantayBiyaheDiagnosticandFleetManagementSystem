@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useJobs } from '../../contexts/JobContext';
 import { 
-  Wrench, Clock, AlertTriangle, ChevronRight, CheckCircle, 
-  Play, PlayCircle, MessageSquare, X, CalendarCheck, Coffee 
+  Wrench, Clock, AlertTriangle, CheckCircle, 
+  Play, PlayCircle, MessageSquare, X, CalendarCheck, Coffee, Loader2 
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -15,10 +15,23 @@ const AssignedJobs = () => {
   const [selectedJob, setSelectedJob] = useState(null);
   const [noteText, setNoteText] = useState('');
 
+  // Optimistic UI State
+  const [loadingJobId, setLoadingJobId] = useState(null);
+  const [optimisticStatus, setOptimisticStatus] = useState({}); // { 'job-123': 'In Progress' }
+
   const CURRENT_TECH_NAME = "Juan dela Cruz"; 
 
+  // --- 1. MERGE REAL DATA WITH OPTIMISTIC DATA ---
+  // This ensures the UI updates instantly before the database confirms
+  const effectiveJobs = useMemo(() => {
+    return jobs.map(job => ({
+      ...job,
+      status: optimisticStatus[job.id] || job.status
+    }));
+  }, [jobs, optimisticStatus]);
+
   // --- FILTER LOGIC ---
-  const myJobs = jobs.filter(job => 
+  const myJobs = effectiveJobs.filter(job => 
     job.technician === CURRENT_TECH_NAME && job.status !== 'Completed'
   );
 
@@ -35,12 +48,34 @@ const AssignedJobs = () => {
     setIsNoteOpen(true);
   };
 
+  const handleStartJob = async (id) => {
+    setLoadingJobId(id);
+    // 🔥 OPTIMISTIC UPDATE: Update UI immediately
+    setOptimisticStatus(prev => ({ ...prev, [id]: 'In Progress' }));
+
+    try {
+      await startJob(id);
+    } catch (error) {
+      console.error("Failed to start job");
+      // Revert if failed
+      setOptimisticStatus(prev => {
+        const newState = { ...prev };
+        delete newState[id];
+        return newState;
+      });
+    } finally {
+      setLoadingJobId(null);
+    }
+  };
+
   const handleSaveNote = async () => {
     if (!noteText.trim()) return;
     await addNote({
       vehicle: selectedJob.vehicle,
       type: 'Technician Note',
-      content: `[${selectedJob.id}] ${noteText}` 
+      content: `[${selectedJob.id}] ${noteText}`, 
+      job_id: selectedJob.id,  // 🔥 THE FIX: This links the note to the history!
+      tech: CURRENT_TECH_NAME
     });
     setIsNoteOpen(false);
     setNoteText('');
@@ -81,7 +116,10 @@ const AssignedJobs = () => {
       {/* JOB CARDS OR EMPTY STATE */}
       <div className="space-y-4">
         {displayedJobs.length > 0 ? (
-          displayedJobs.map((job) => (
+          displayedJobs.map((job) => {
+             const isLoading = loadingJobId === job.id;
+             
+             return (
             <div key={job.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
               <div className={`absolute left-0 top-0 bottom-0 w-1 ${job.priority === 'High' ? 'bg-red-500' : job.priority === 'Medium' ? 'bg-orange-400' : 'bg-blue-400'}`}></div>
               <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center pl-3">
@@ -99,22 +137,29 @@ const AssignedJobs = () => {
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto mt-2 md:mt-0">
                   <button onClick={() => openNoteModal(job)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Add Note"><MessageSquare size={20} /></button>
+                  
                   {job.status === 'Pending' ? (
-                    <button onClick={() => startJob(job.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
-                      <Play size={16} /> Start
+                    <button 
+                      onClick={() => handleStartJob(job.id)} 
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                      {isLoading ? 'Starting...' : 'Start'}
                     </button>
                   ) : (
-                    <span className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm font-bold">
+                    <span className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg text-sm font-bold animate-in zoom-in duration-300">
                       <CheckCircle size={16} /> In Progress
                     </span>
                   )}
+                  
                   <Link to={`/technician/jobs/${job.id}`} className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition-colors">Details</Link>
                 </div>
               </div>
             </div>
-          ))
+          )})
         ) : (
-          // --- NEW: EMPTY STATE CARD ---
+          // --- EMPTY STATE CARD ---
           <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 border-dashed text-center">
             <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
               {filter === 'All' ? (
