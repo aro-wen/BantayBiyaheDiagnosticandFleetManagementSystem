@@ -1,175 +1,152 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, AlertTriangle, CheckCircle, Clock, Search, Filter, Trash2 } from 'lucide-react';
-import { supabase } from '../../supabaseClient';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Search, Trash2, Calendar as CalendarIcon, List, ChevronLeft, 
+  ChevronRight, AlertTriangle, CheckCircle, Clock, Plus 
+} from 'lucide-react';
+import { useMaintenanceData } from '../../hooks/useMaintenanceData';
+import CreateJobModal from '../../components/CreateJobModal'; 
 
 const MaintenanceSchedule = () => {
-  const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('calendar'); 
+  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState(null); // Track which vehicle is being serviced
 
-  // --- FETCH DATA & REALTIME SUBSCRIPTION ---
-  useEffect(() => {
-    fetchSchedules();
+  const { filteredSchedules, loading, deleteSchedule, refreshData } = useMaintenanceData(searchTerm);
 
-    // 🔥 THE FIX: Listen specifically to the maintenance_schedules table
-    const scheduleChannel = supabase
-      .channel('maintenance-schedules-updates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'maintenance_schedules' },
-        (payload) => {
-          console.log('🔥 Schedule Updated:', payload);
-          
-          setSchedules(currentSchedules => {
-            let updated = [...currentSchedules];
-            
-            if (payload.eventType === 'INSERT') {
-              updated.push(payload.new);
-            } else if (payload.eventType === 'UPDATE') {
-              updated = updated.map(item => item.id === payload.new.id ? payload.new : item);
-            } else if (payload.eventType === 'DELETE') {
-              updated = updated.filter(item => item.id !== payload.old.id);
-            }
-
-            // Always re-sort dynamically so the most urgent dates stay at the top!
-            return updated.sort((a, b) => new Date(a.next_due_date || 0) - new Date(b.next_due_date || 0));
-          });
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscription on unmount
-    return () => {
-      supabase.removeChannel(scheduleChannel);
-    };
-  }, []);
-
-  const fetchSchedules = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('maintenance_schedules')
-      .select('*')
-      .order('next_due_date', { ascending: true });
-    
-    if (error) console.error('Error fetching schedules:', error);
-    else setSchedules(data || []);
-    setLoading(false);
+  const adjustMonth = (offset) => {
+    setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + offset)));
   };
 
-  // --- DELETE HANDLER ---
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to remove this maintenance rule?")) return;
-    
-    // We only need to talk to the database here.
-    // The Realtime listener above will catch the DELETE event and instantly remove it from the screen.
-    await supabase.from('maintenance_schedules').delete().eq('id', id);
+  // --- TRIGGER MODAL FOR SPECIFIC VEHICLE ---
+  const handleTriggerJob = (item) => {
+    setSelectedVehicle({
+      id: item.vehicle_id,
+      message: item.service_type,
+      code: `Next Due: ${item.next_due_date}`
+    });
+    setIsModalOpen(true);
   };
 
-  // --- HELPER: CALCULATE STATUS ---
-  const getStatus = (dueDateString) => {
-    if (!dueDateString) return { label: 'Unknown', color: 'bg-slate-100 text-slate-500', icon: <Clock size={14} /> };
-    
-    const today = new Date();
-    const due = new Date(dueDateString);
-    const diffTime = due - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return { label: 'Overdue', color: 'bg-red-100 text-red-600', icon: <AlertTriangle size={14} /> };
-    if (diffDays <= 7) return { label: 'Due Soon', color: 'bg-yellow-100 text-yellow-600', icon: <Clock size={14} /> };
-    return { label: 'Healthy', color: 'bg-green-100 text-green-600', icon: <CheckCircle size={14} /> };
+  const handleJobSuccess = () => {
+    if (refreshData) refreshData();
+    setIsModalOpen(false);
+    setSelectedVehicle(null);
   };
-
-  // --- FILTERING ---
-  const filteredSchedules = schedules.filter(s => 
-    s.vehicle_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.service_type?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-6 animate-fade-in p-2 md:p-6">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Maintenance Schedule</h1>
-          <p className="text-slate-500">Track upcoming service dates for the entire fleet</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Maintenance Schedule</h1>
+          <p className="text-sm font-medium text-slate-500">Fleet service tracking for BantayBiyahe</p>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => { setSelectedVehicle(null); setIsModalOpen(true); }}
+            className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95"
+          >
+            <Plus size={16} /> Create Job
+          </button>
+
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button onClick={() => setViewMode('calendar')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'calendar' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <CalendarIcon size={14} /> Calendar
+            </button>
+            <button onClick={() => setViewMode('list')} className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              <List size={14} /> List
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Toolbar remains the same */}
+      <div className="flex flex-col md:flex-row gap-4 items-center">
+        <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 flex-1 w-full">
+          <div className="pl-3"><Search className="text-slate-400" size={20} /></div>
+          <input 
+            type="text" 
+            placeholder="Search by vehicle ID or service..." 
+            className="flex-1 py-2 outline-none text-sm font-medium text-slate-700 bg-transparent"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
 
-      {/* SEARCH BAR */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-        <Search className="text-slate-400" size={20} />
-        <input 
-          type="text" 
-          placeholder="Search Vehicle ID or Service Type..." 
-          className="flex-1 outline-none text-sm text-slate-700"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      {loading ? (
+        <div className="p-12 text-center text-slate-400 font-medium">Loading fleet data...</div>
+      ) : (
+        viewMode === 'list' ? (
+          <ListView schedules={filteredSchedules} onDelete={deleteSchedule} onSelect={handleTriggerJob} />
+        ) : (
+          <CalendarView schedules={filteredSchedules} currentDate={currentDate} />
+        )
+      )}
 
-      {/* TABLE */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Vehicle</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Service Type</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Cycle</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Last Service</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Next Due</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr><td colSpan="7" className="p-8 text-center text-slate-400">Loading schedules...</td></tr>
-              ) : filteredSchedules.length === 0 ? (
-                <tr><td colSpan="7" className="p-8 text-center text-slate-400">No schedules found.</td></tr>
-              ) : (
-                filteredSchedules.map((item) => {
-                  const status = getStatus(item.next_due_date);
-                  return (
-                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-800">{item.vehicle_id}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-slate-700">{item.service_type}</td>
-                      <td className="px-6 py-4 text-xs text-slate-500">Every {item.interval_days} Days</td>
-                      
-                      <td className="px-6 py-4 text-sm text-slate-500 font-mono">
-                        {item.last_service_date ? new Date(item.last_service_date).toLocaleDateString() : <span className="text-red-400 italic">Unknown</span>}
-                      </td>
-                      
-                      <td className="px-6 py-4 text-sm font-bold text-slate-800 font-mono">
-                        {new Date(item.next_due_date).toLocaleDateString()}
-                      </td>
-
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${status.color}`}>
-                          {status.icon} {status.label}
-                        </span>
-                      </td>
-
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => handleDelete(item.id)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete Rule"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <CreateJobModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setSelectedVehicle(null); }} 
+        vehicle={selectedVehicle}
+        onSuccess={handleJobSuccess}
+      />
     </div>
   );
 };
 
-export default MaintenanceSchedule;
+// --- UPDATED LIST VIEW COMPONENT ---
+const ListView = ({ schedules, onDelete, onSelect }) => (
+  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead className="bg-slate-50/50 border-b border-slate-100">
+          <tr>
+            {['Vehicle', 'Service Type', 'Cycle', 'Last Service', 'Next Due', 'Status', 'Action'].map((h) => (
+              <th key={h} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {schedules.map((item) => <ScheduleRow key={item.id} item={item} onDelete={onDelete} onSelect={onSelect} />)}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+// --- UPDATED ROW COMPONENT WITH CLICKABLE STATUS ---
+const ScheduleRow = ({ item, onDelete, onSelect }) => {
+  const status = React.useMemo(() => {
+    const diffDays = Math.ceil((new Date(item.next_due_date) - new Date()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return { label: 'Overdue', color: 'bg-red-50 text-red-600 border-red-100 cursor-pointer hover:bg-red-100', icon: <AlertTriangle size={14} />, actionable: true };
+    if (diffDays <= 7) return { label: 'Due Soon', color: 'bg-orange-50 text-orange-600 border-orange-100 cursor-pointer hover:bg-orange-100', icon: <Clock size={14} />, actionable: true };
+    return { label: 'Healthy', color: 'bg-green-50 text-green-600 border-green-100', icon: <CheckCircle size={14} />, actionable: false };
+  }, [item.next_due_date]);
+
+  return (
+    <tr className="hover:bg-slate-50/50 transition-colors">
+      <td className="px-6 py-4 font-bold text-slate-800">{item.vehicle_id}</td>
+      <td className="px-6 py-4 text-sm font-semibold text-slate-600">{item.service_type}</td>
+      <td className="px-6 py-4 text-xs font-bold text-slate-400">Every {item.interval_days} days</td>
+      <td className="px-6 py-4 text-sm text-slate-500 font-mono font-medium">{item.last_service_date ? new Date(item.last_service_date).toLocaleDateString() : 'None'}</td>
+      <td className="px-6 py-4 text-sm font-bold text-slate-700 font-mono">{new Date(item.next_due_date).toLocaleDateString()}</td>
+      <td className="px-6 py-4">
+        {/* If maintenance is due, this badge is now a button */}
+        <button 
+          disabled={!status.actionable}
+          onClick={() => status.actionable && onSelect(item)}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${status.color}`}
+        >
+          {status.icon} {status.label}
+        </button>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <button onClick={() => onDelete(item.id)} className="p-2 text-slate-300 hover:text-red-500 transition-all"><Trash2 size={16} /></button>
+      </td>
+    </tr>
+  );
+};

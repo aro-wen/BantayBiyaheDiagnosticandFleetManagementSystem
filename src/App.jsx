@@ -21,7 +21,7 @@ import DispatcherDashboard from './pages/dispatcher/DispatcherDashboard';
 import DispatcherVehicles from './pages/dispatcher/Vehicles';
 import Drivers from './pages/dispatcher/Drivers';
 import Alerts from './pages/dispatcher/Alerts';
-import MaintenanceSchedule from './pages/dispatcher/MaintenanceSchedule';
+// import MaintenanceSchedule from './pages/dispatcher/MaintenanceSchedule';
 
 // Driver Pages
 import DriverDashboard from './pages/driver/DriverDashboard';
@@ -50,7 +50,7 @@ function App() {
           <Route path="/dispatcher" element={<DispatcherLayout />}>
             <Route path="dashboard" element={<DispatcherDashboard />} />
             <Route path="assign" element={<JobAssignment />} /> {/* <--- NEW */}
-            <Route path="schedule" element={<MaintenanceSchedule />} />
+            {/* <Route path="schedule" element={<MaintenanceSchedule />} /> */}
             <Route path="vehicles" element={<DispatcherVehicles />} />
             <Route path="drivers" element={<Drivers />} />
             <Route path="alerts" element={<Alerts />} />

@@ -51,7 +51,7 @@ const DispatcherLayout = () => {
           <NavItem to="/dispatcher/dashboard" icon={<LayoutDashboard size={20} />} label="Fleet Overview" />
           <NavItem to="/dispatcher/vehicles" icon={<Truck size={20} />} label="Vehicles" />
           <NavItem to="/dispatcher/assign" icon={<Wrench size={20} />} label="Maintenance Jobs" />
-          <NavItem to="/dispatcher/schedule" icon={<Calendar size={20} />} label="Maintenance Schedule" />
+          {/* <NavItem to="/dispatcher/schedule" icon={<Calendar size={20} />} label="Maintenance Schedule" /> */}
           <NavItem to="/dispatcher/drivers" icon={<Users size={20} />} label="Drivers" />
           <NavItem to="/dispatcher/alerts" icon={<Bell size={20} />} label="Alerts & Notifications" />
         </nav>

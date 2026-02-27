@@ -1,0 +1,48 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { syncVehicleAddress } from '../config/routeConfig';
+
+export const useVehicleData = (vehicleId) => {
+  const [vehicleData, setVehicleData] = useState({
+    speed: 0, rpm: 0, temp: 85, battery: 12.8, fuel: 65, mil: 'OFF',
+    current_address: "", next_address: "", lat: null, lng: null
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const init = async () => {
+      setIsLoading(true);
+      const { data } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('id', vehicleId)
+        .single();
+        
+      if (data) {
+        setVehicleData(data);
+        // Process address immediately on load
+        await syncVehicleAddress(vehicleId);
+      }
+      setIsLoading(false);
+    };
+
+    init();
+
+    const channel = supabase.channel(`telemetry-${vehicleId}`)
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'vehicles', 
+        filter: `id=eq.${vehicleId}` 
+      }, (payload) => {
+        setVehicleData(prev => ({ ...prev, ...payload.new }));
+        // Sync addresses in background whenever coordinates update
+        syncVehicleAddress(vehicleId);
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [vehicleId]);
+
+  return { vehicleData, isLoading };
+};
