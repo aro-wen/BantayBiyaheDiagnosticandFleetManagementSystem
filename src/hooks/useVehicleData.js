@@ -5,7 +5,8 @@ import { syncVehicleAddress } from '../config/routeConfig';
 export const useVehicleData = (vehicleId) => {
   const [vehicleData, setVehicleData] = useState({
     speed: 0, rpm: 0, temp: 85, battery: 12.8, fuel: 65, mil: 'OFF',
-    current_address: "", next_address: "", lat: null, lng: null
+    current_address: "Searching...", next_address: "Loading Route...", 
+    lat: null, lng: null, activity: 'Inactive'
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -20,7 +21,7 @@ export const useVehicleData = (vehicleId) => {
         
       if (data) {
         setVehicleData(data);
-        // Process address immediately on load
+        // Process address immediately on load for the Raspberry Pi display
         await syncVehicleAddress(vehicleId);
       }
       setIsLoading(false);
@@ -35,7 +36,9 @@ export const useVehicleData = (vehicleId) => {
         table: 'vehicles', 
         filter: `id=eq.${vehicleId}` 
       }, (payload) => {
+        // Update local state with new telemetry from the Pi
         setVehicleData(prev => ({ ...prev, ...payload.new }));
+        
         // Sync addresses in background whenever coordinates update
         syncVehicleAddress(vehicleId);
       })
@@ -44,5 +47,5 @@ export const useVehicleData = (vehicleId) => {
     return () => supabase.removeChannel(channel);
   }, [vehicleId]);
 
-  return { vehicleData, isLoading };
+  return { vehicleData, isLoading, setVehicleData };
 };
