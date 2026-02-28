@@ -4,11 +4,12 @@ import { useVehicleData } from '../../hooks/useVehicleData';
 import { 
   AlertTriangle, Play, Square, AlertOctagon, CheckCircle,
   CarFront, HeartPulse, Wrench, ShieldAlert, X, ArrowLeft, MapPin, Loader2,
-  Thermometer, Battery, Fuel
+  Thermometer, Battery, Fuel as FuelIcon
 } from 'lucide-react';
 
-// Configuration for your BantayBiyahe Thesis Route
+// Configuration & Thresholds
 import { calculateDistance, PANDACAN_ROUTE } from '../../config/routeConfig'; 
+import { VEHICLE_THRESHOLDS, getStatusColor, isMilActive } from '../../config/thresholds';
 
 const DriverDashboard = () => {
   const VEHICLE_ID = "V-101"; 
@@ -22,37 +23,12 @@ const DriverDashboard = () => {
   const [sosStep, setSosStep] = useState('MENU'); 
   const [selectedSosType, setSelectedSosType] = useState(null);
 
-  // --- 2. DYNAMIC COLOR & ICON HELPERS ---
-  const isMilActive = (mil) => mil === 'ON' || mil === true;
-
-  const getTelemetryConfig = (val, type) => {
-    switch(type) {
-      case 'TEMP':
-        return {
-          color: val > 100 ? 'text-red-500' : val > 90 ? 'text-amber-500' : 'text-green-500',
-          icon: <Thermometer size={14} className="text-slate-500" />
-        };
-      case 'BATTERY':
-        return {
-          color: val < 11.5 ? 'text-red-500' : val < 12.2 ? 'text-amber-500' : 'text-blue-500',
-          icon: <Battery size={14} className="text-slate-500" />
-        };
-      case 'FUEL':
-        return {
-          color: val < 15 ? 'text-red-500' : val < 30 ? 'text-amber-500' : 'text-green-400',
-          icon: <Fuel size={14} className="text-slate-500" />
-        };
-      default:
-        return { color: 'text-white', icon: null };
-    }
-  };
-
-  // --- 3. LOGIC & ACTIONS ---
   useEffect(() => {
     const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(clockInterval);
   }, []);
 
+  // --- 2. ACTIONS ---
   const toggleTrip = async () => {
     if (vehicleData.activity === 'Under Maintenance') return; 
     const nextActivity = vehicleData.activity === 'Active' ? 'Inactive' : 'Active';
@@ -85,182 +61,138 @@ const DriverDashboard = () => {
     return target ? calculateDistance(vehicleData.lat, vehicleData.lng, target.lat, target.lng).toFixed(2) : "0.00";
   }, [vehicleData.lat, vehicleData.lng, vehicleData.next_address]);
 
-  // --- 4. OPTIMIZED GAUGES ---
+  // --- 3. OPTIMIZED RPM GAUGE ---
   const RPMGauge = ({ rpm }) => {
-    const percentage = Math.min(rpm / 8000, 1);
+    const T = VEHICLE_THRESHOLDS.RPM;
+    const percentage = Math.min(rpm / (T.MAX + 1000), 1);
     const rotation = -100 + (percentage * 200); 
-    const isRedline = rpm > 7000;
+    const isWarning = rpm >= T.WARNING;
 
     return (
-      <div className="relative w-full h-[12vh] min-h-[55px] flex justify-center items-end overflow-hidden">
+      <div className="relative w-full h-[12vh] min-h-[55px] flex justify-center items-end overflow-hidden pt-1">
           <svg className="absolute w-[95%] h-[200%] top-0" viewBox="0 0 100 50">
             <path d="M 5 45 A 45 35 0 0 1 95 45" fill="none" stroke="#1e293b" strokeWidth="8" strokeLinecap="round" />
-            <path d="M 5 45 A 45 35 0 0 1 95 45" fill="none" stroke={isRedline ? "#ef4444" : "#22d3ee"} strokeWidth="8" strokeDasharray="135" strokeDashoffset={135 - (135 * percentage)} strokeLinecap="round" className="transition-all duration-500 ease-out" />
+            <path d="M 5 45 A 45 35 0 0 1 95 45" fill="none" stroke={isWarning ? "#ef4444" : "#22d3ee"} strokeWidth="8" strokeDasharray="135" strokeDashoffset={135 - (135 * percentage)} strokeLinecap="round" className="transition-all duration-500 ease-out" />
           </svg>
-          <div className="absolute bottom-[4px] w-full h-[115%] flex justify-center transition-transform duration-500" style={{ transform: `rotate(${rotation}deg)`, transformOrigin: '50% 100%' }}>
-            <div className={`w-[4px] h-full shadow-lg ${isRedline ? 'bg-red-500 shadow-red-500/50' : 'bg-slate-100'}`} style={{ clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }} />
+          <div className="absolute bottom-[4px] w-full h-full flex justify-center transition-transform duration-500" style={{ transform: `rotate(${rotation}deg)`, transformOrigin: '50% 100%' }}>
+            <div className={`w-[4px] h-full shadow-lg ${isWarning ? 'bg-red-500 shadow-red-500/50' : 'bg-slate-100'}`} style={{ clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }} />
           </div>
-          <div className="absolute bottom-[-3px] w-[8%] aspect-square bg-slate-400 rounded-full border-2 border-slate-900 z-20" />
+          <div className="absolute bottom-[-3px] w-[8%] aspect-square bg-slate-400 rounded-full border-2 border-slate-900 z-20 shadow-lg" />
       </div>
     );
   };
 
   return (
     <div className="h-screen w-screen bg-black text-white font-sans overflow-hidden flex flex-col p-[1vh] select-none">
-      <div className="flex-1 bg-slate-900/30 rounded-xl border border-slate-800/40 flex flex-col gap-1 p-1">
+      <div className="flex-1 bg-slate-900/30 rounded-xl border border-slate-800/40 flex flex-col gap-1 p-1 shadow-2xl">
         
-        {/* ROW 1: PRIMARY METRICS */}
+        {/* ROW 1: SPEED & RPM */}
         <div className="flex-[2] grid grid-cols-2 gap-1">
-          <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex flex-col items-center justify-center p-1">
-            <h1 className={`text-[clamp(3rem,14vh,7.5rem)] font-black leading-none tabular-nums tracking-tighter ${vehicleData.speed > 80 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+          <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex flex-col items-center justify-center p-1 relative overflow-hidden">
+            <h1 className={`text-[clamp(3rem,14vh,7.5rem)] font-black leading-none tabular-nums tracking-tighter transition-colors ${vehicleData.speed >= VEHICLE_THRESHOLDS.SPEED.WARNING ? 'text-red-500 animate-pulse' : 'text-white'}`}>
               {Math.round(vehicleData.speed)}
             </h1>
             <span className="text-cyan-400 text-[9px] font-bold tracking-widest uppercase -mt-1">KM/H</span>
             <div className="flex gap-1 h-[2.5vh] mt-2 w-[85%]">
               {[...Array(14)].map((_, i) => (
-                <div key={i} className={`flex-1 rounded-sm skew-x-[-12deg] ${i < (vehicleData.speed/160)*14 ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-slate-800'}`} />
+                <div key={i} className={`flex-1 rounded-sm skew-x-[-12deg] transition-all ${i < (vehicleData.speed/VEHICLE_THRESHOLDS.SPEED.MAX)*14 ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-slate-800'}`} />
               ))}
             </div>
           </div>
+
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex flex-col items-center justify-center pt-2">
             <RPMGauge rpm={vehicleData.rpm} />
-            <div className={`text-[clamp(1.2rem,4vh,2.2rem)] font-black mt-1 ${vehicleData.rpm > 7000 ? 'text-red-500' : 'text-white'}`}>{vehicleData.rpm}</div>
+            <div className={`text-[clamp(1.2rem,4vh,2.2rem)] font-black mt-1 tabular-nums ${vehicleData.rpm >= VEHICLE_THRESHOLDS.RPM.WARNING ? 'text-red-500' : 'text-white'}`}>{vehicleData.rpm}</div>
             <span className="text-slate-500 text-[8px] font-bold uppercase tracking-widest">RPM</span>
           </div>
         </div>
 
-        {/* ROW 2: TELEMETRY (RESTORED COLORS & ICONS) */}
+        {/* ROW 2: TELEMETRY (Using getStatusColor) */}
         <div className="flex-[0.5] grid grid-cols-3 gap-1">
-          {['temp', 'battery', 'fuel'].map((k) => {
-            const config = getTelemetryConfig(vehicleData[k], k.toUpperCase());
-            return (
-              <div key={k} className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
-                <div className="flex items-center gap-1.5">
-                  {config.icon}
-                  <span className="text-slate-500 text-[7px] font-black uppercase tracking-tighter">{k}</span>
-                </div>
-                <span className={`text-xs font-black tabular-nums ${config.color}`}>
-                  {vehicleData[k]}{k === 'temp' ? '°' : k === 'fuel' ? '%' : 'V'}
-                </span>
-              </div>
-            );
-          })}
+          <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
+            <div className="flex items-center gap-1.5"><Thermometer size={14} className="text-slate-500"/><span className="text-slate-500 text-[7px] font-black uppercase">temp</span></div>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.temp, 'TEMP')}`}>{vehicleData.temp}°</span>
+          </div>
+          <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
+            <div className="flex items-center gap-1.5"><Battery size={14} className="text-slate-500"/><span className="text-slate-500 text-[7px] font-black uppercase">batt</span></div>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.battery, 'BATTERY')}`}>{vehicleData.battery}V</span>
+          </div>
+          <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
+            <div className="flex items-center gap-1.5"><FuelIcon size={14} className="text-slate-500"/><span className="text-slate-500 text-[7px] font-black uppercase">fuel</span></div>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.fuel, 'FUEL')}`}>{vehicleData.fuel}%</span>
+          </div>
         </div>
 
-        {/* ROW 3: POSITION & SYSTEM */}
+        {/* ROW 3: POSITION & SYSTEM (Using isMilActive) */}
         <div className="flex-[1.2] grid grid-cols-2 gap-1">
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 p-2 flex flex-col justify-center">
             <div className="flex items-center gap-2 mb-1 border-b border-white/5 pb-1">
               <CheckCircle size={12} className="text-cyan-500"/>
-              <span className="text-[10px] font-black uppercase truncate text-slate-100">{isLoading ? "SYNC..." : vehicleData.current_address}</span>
+              <span className="text-[10px] font-black uppercase truncate text-slate-100">{isLoading ? "SYNCING..." : vehicleData.current_address}</span>
             </div>
             <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[7px] font-black text-amber-500 uppercase tracking-tighter">Next Stop</p>
-                <p className="text-[9px] font-bold text-slate-400 truncate uppercase max-w-[110px]">{vehicleData.next_address || "END ROUTE"}</p>
-              </div>
-              <div className="text-[1.8rem] font-mono font-black text-amber-500 tabular-nums">{distToNext} <span className="text-[8px] text-slate-500 uppercase">KM</span></div>
+              <div><p className="text-[7px] font-black text-amber-500 uppercase">Next Stop</p><p className="text-[9px] font-bold text-slate-400 truncate uppercase max-w-[110px]">{vehicleData.next_address || "END ROUTE"}</p></div>
+              <div className="text-[1.8rem] font-mono font-black text-amber-500 tabular-nums">{distToNext} <span className="text-[8px] text-slate-500">KM</span></div>
             </div>
           </div>
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex items-center justify-center gap-3">
             {isMilActive(vehicleData.mil) ? (
-              <div className="text-red-500 animate-pulse flex items-center gap-2">
-                <AlertOctagon size={24} />
-                <span className="text-[10px] font-black uppercase">Check Engine</span>
+              <div className={`flex items-center gap-2 ${getStatusColor(vehicleData.mil, 'MIL')}`}>
+                <AlertOctagon size={24} /><span className="text-[10px] font-black uppercase">Check Engine</span>
               </div>
             ) : (
               <div className="text-green-500 flex items-center gap-2">
-                <CheckCircle size={24} />
-                <div className="flex flex-col"><span className="text-[10px] font-black uppercase leading-none">System</span><span className="text-[8px] font-bold text-slate-400 uppercase">OPERATIONAL</span></div>
+                <CheckCircle size={24} /><div className="flex flex-col"><span className="text-[10px] font-black uppercase leading-none">System</span><span className="text-[8px] font-bold text-slate-400 uppercase">Operational</span></div>
               </div>
             )}
           </div>
         </div>
 
-        {/* ROW 4: ACTION CONTROLS */}
+        {/* ROW 4: BUTTONS */}
         <div className="flex-[0.6] grid grid-cols-2 gap-1">
           <button 
             disabled={vehicleData.activity === 'Under Maintenance'}
             onClick={toggleTrip} 
             className={`rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] border transition-all active:scale-95 
             ${vehicleData.activity === 'Under Maintenance' ? 'opacity-40 bg-slate-900 border-slate-800 cursor-not-allowed' : 
-              vehicleData.activity === 'Active' ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-900/30 text-green-400 border-green-500/50'}`}
+              vehicleData.activity === 'Active' ? 'bg-slate-800 text-slate-400 border-slate-700 shadow-inner' : 'bg-green-900/30 text-green-400 border-green-500/50'}`}
           >
             {vehicleData.activity === 'Active' ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
             {vehicleData.activity === 'Active' ? 'End Trip' : 'Start Trip'}
           </button>
-          <button onClick={() => { setShowSosOverlay(true); setSosStep('MENU'); }} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg animate-pulse active:scale-95 transition-all">
+          <button onClick={() => { setShowSosOverlay(true); setSosStep('MENU'); }} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg animate-pulse active:scale-95">
             <AlertTriangle size={12} /> SOS Emergency
           </button>
         </div>
       </div>
 
-      {/* --- SOS OVERLAY SECTION (DISTINGUISHABLE BUTTONS) --- */}
+      {/* SOS OVERLAY (DISTINGUISHABLE BUTTONS) */}
       {showSosOverlay && (
         <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm p-3 flex flex-col animate-in fade-in duration-200">
           {sosStep === 'MENU' && (
             <>
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Select Emergency</h2>
-                <button onClick={() => setShowSosOverlay(false)} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button>
-              </div>
-              
-              {/* DISTINGUISHABLE GRID */}
+              <div className="flex justify-between items-center mb-2"><h2 className="text-xl font-black text-white uppercase tracking-tighter">Emergency Alert</h2><button onClick={() => setShowSosOverlay(false)} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button></div>
               <div className="flex-1 grid grid-cols-2 gap-2">
-                <button 
-                  onClick={() => { setSelectedSosType({reason: 'Accident'}); setSosStep('CONFIRM'); }} 
-                  className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600 transition-all"
-                >
-                  <CarFront size={32} className="text-red-500" />
-                  <span className="text-[12px] font-black uppercase text-red-500">Accident</span>
-                </button>
-
-                <button 
-                  onClick={() => { setSelectedSosType({reason: 'Medical'}); setSosStep('CONFIRM'); }} 
-                  className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600 transition-all"
-                >
-                  <HeartPulse size={32} className="text-rose-500" />
-                  <span className="text-[12px] font-black uppercase text-rose-500">Medical</span>
-                </button>
-
-                <button 
-                  onClick={() => { setSelectedSosType({reason: 'Breakdown'}); setSosStep('CONFIRM'); }} 
-                  className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600 transition-all"
-                >
-                  <Wrench size={32} className="text-amber-500" />
-                  <span className="text-[12px] font-black uppercase text-amber-500">Breakdown</span>
-                </button>
-
-                <button 
-                  onClick={() => { setSelectedSosType({reason: 'Threat'}); setSosStep('CONFIRM'); }} 
-                  className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500 transition-all"
-                >
-                  <ShieldAlert size={32} className="text-slate-300" />
-                  <span className="text-[12px] font-black uppercase text-slate-300">Security</span>
-                </button>
+                <button onClick={() => { setSelectedSosType({reason: 'Accident'}); setSosStep('CONFIRM'); }} className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600"><CarFront size={32} className="text-red-500" /><span className="text-[12px] font-black uppercase text-red-500">Accident</span></button>
+                <button onClick={() => { setSelectedSosType({reason: 'Medical'}); setSosStep('CONFIRM'); }} className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600"><HeartPulse size={32} className="text-rose-500" /><span className="text-[12px] font-black uppercase text-rose-500">Medical</span></button>
+                <button onClick={() => { setSelectedSosType({reason: 'Breakdown'}); setSosStep('CONFIRM'); }} className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600"><Wrench size={32} className="text-amber-500" /><span className="text-[12px] font-black uppercase text-amber-500">Breakdown</span></button>
+                <button onClick={() => { setSelectedSosType({reason: 'Threat'}); setSosStep('CONFIRM'); }} className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500"><ShieldAlert size={32} className="text-slate-300" /><span className="text-[12px] font-black uppercase text-slate-300">Security</span></button>
               </div>
-              <button onClick={() => setShowSosOverlay(false)} className="mt-2 py-3 bg-slate-900 border border-slate-700 rounded-xl text-[10px] font-bold text-slate-400 uppercase">Cancel Request</button>
             </>
           )}
-
           {sosStep === 'CONFIRM' && (
             <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
               <AlertTriangle size={60} className="text-red-500 animate-bounce" />
-              <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{selectedSosType?.reason}</h2>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-tight">{selectedSosType?.reason}</h2>
               <div className="w-full flex flex-col gap-2">
-                <button onClick={confirmSendSos} className="w-full py-6 bg-red-600 rounded-xl text-2xl font-black uppercase shadow-2xl">Confirm Alert</button>
-                <button onClick={() => setSosStep('MENU')} className="w-full py-3 bg-slate-800 rounded-xl text-xs font-bold uppercase tracking-widest">Cancel</button>
+                <button onClick={confirmSendSos} className="w-full py-6 bg-red-600 rounded-xl text-2xl font-black uppercase shadow-2xl transition-all active:scale-95">Confirm Alert</button>
+                <button onClick={() => setSosStep('MENU')} className="w-full py-3 bg-slate-800 rounded-xl text-xs font-bold uppercase tracking-widest">Go Back</button>
               </div>
             </div>
           )}
-
           {(sosStep === 'SENDING' || sosStep === 'SUCCESS') && (
             <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center">
-              {sosStep === 'SENDING' ? (
-                <><Loader2 size={40} className="text-white animate-spin mb-2" /><h2 className="text-xl font-black text-white uppercase animate-pulse">Dispatching...</h2></>
-              ) : (
-                <><CheckCircle size={80} className="text-green-500 mb-2 animate-in zoom-in" /><h2 className="text-xl font-black text-green-500 uppercase">Alert Received</h2></>
-              )}
+              {sosStep === 'SENDING' ? <><Loader2 size={40} className="text-white animate-spin mb-2" /><h2 className="text-xl font-black text-white uppercase animate-pulse">Dispatching...</h2></> : <><CheckCircle size={80} className="text-green-500 mb-2 animate-in zoom-in" /><h2 className="text-xl font-black text-green-500 uppercase">Alert Received</h2></>}
             </div>
           )}
         </div>
