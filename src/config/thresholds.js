@@ -34,7 +34,7 @@ export const VEHICLE_THRESHOLDS = {
   // --- MIL (Check Engine) ---
   // We list all values that should trigger the light
   MIL: {
-    TRIGGER_VALUES: [true, 'ON', 'on', 'TRUE', 1] 
+    TRIGGER_VALUES: [true, 'ON', 'on', 'TRUE', 1, , 'Check Engine', 'Check Engine', 'CHECK ENGINE'] 
   }
 };
 
