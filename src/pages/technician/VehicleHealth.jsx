@@ -69,8 +69,8 @@ const VehicleHealth = () => {
       {/* 1. HEADER & SUMMARY CARDS */}
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-800 flex items-center gap-2 tracking-tight uppercase">
-            <Wrench className="text-blue-600" /> Maintenance Hub
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+          Maintenance Hub
           </h1>
           <p className="text-slate-500 text-xs md:text-sm font-medium">Diagnostic oversight for BantayBiyahe fleet</p>
         </div>
@@ -101,15 +101,15 @@ const VehicleHealth = () => {
                 >
                   <Popup className="tech-popup">
                     <div className="text-center p-1">
-                      <div className="font-black text-slate-800 text-sm uppercase">{v.id}</div>
-                      <div className="text-[9px] font-bold text-slate-400 mb-2 uppercase border-b pb-1">{v.plate}</div>
+                      <div className="font-black text-slate-800 text-sm">{v.id}</div>
+                      <div className="text-[9px] font-bold text-slate-400 mb-2 border-b pb-1">{v.plate}</div>
                       <div className="flex flex-col gap-1 mb-3">
                         <div className="text-[10px] font-bold text-slate-500">Status: {v.activity}</div>
                         {isMilActive(v.mil) && <div className="text-[10px] font-bold text-red-500 animate-pulse">!! CHECK ENGINE !!</div>}
                       </div>
                       <button 
                         onClick={() => openModal(v)} 
-                        className="w-full bg-slate-900 text-white text-[10px] font-black uppercase py-2.5 rounded-md hover:bg-slate-800 transition-colors"
+                        className="w-full bg-slate-900 text-white text-[10px] font-black py-2.5 rounded-md hover:bg-slate-800 transition-colors"
                       >
                         Run Diagnostics
                       </button>
@@ -137,11 +137,11 @@ const VehicleHealth = () => {
         </div>
 
         <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto no-scrollbar">
-          {['all', 'under maintenance', 'active', 'inactive'].map((s) => (
+          {['ALL', 'UNDER MAINTENANCE', 'ACTIVE', 'INACTIVE'].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+              className={`px-4 py-2 rounded-lg text-[9px] md:text-[10px] font-black tracking-widest transition-all whitespace-nowrap ${
                 statusFilter === s ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -169,8 +169,8 @@ const VehicleHealth = () => {
                   {isMilActive(v.mil) ? <AlertOctagon size={24} /> : <Activity size={24} />}
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-800 uppercase leading-none mb-1">{v.id}</h4>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{v.plate}</p>
+                  <h4 className="font-black text-slate-800 leading-none mb-1">{v.id}</h4>
+                  <p className="text-[10px] font-bold text-slate-400 tracking-widest">{v.plate}</p>
                 </div>
               </div>
               <StatusBadge type={v.activity} />
@@ -179,11 +179,11 @@ const VehicleHealth = () => {
             <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100">
               <div className="bg-slate-50 p-2 rounded-lg text-center">
                 <p className={`text-lg font-black font-mono ${getStatusColor(v.temp, 'TEMP')}`}>{v.temp || 0}°C</p>
-                <p className="text-[8px] font-black text-slate-400 uppercase">Engine Temp</p>
+                <p className="text-[8px] font-black text-slate-400">Engine Temp</p>
               </div>
               <div className="bg-slate-50 p-2 rounded-lg text-center">
                 <p className={`text-lg font-black font-mono ${getStatusColor(v.battery, 'BATTERY')}`}>{v.battery || 0}V</p>
-                <p className="text-[8px] font-black text-slate-400 uppercase">Battery</p>
+                <p className="text-[8px] font-black text-slate-400">Battery</p>
               </div>
             </div>
           </div>
@@ -204,7 +204,7 @@ const VehicleHealth = () => {
 const HealthStatCard = ({ label, value, color, icon, className = "" }) => (
   <div className={`bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between ${className}`}>
     <div className="min-w-0">
-      <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">{label}</p>
+      <p className="text-[9px] md:text-[10px] font-black text-slate-400 tracking-widest truncate">{label}</p>
       <p className={`text-xl md:text-2xl font-black ${color}`}>{value}</p>
     </div>
     <div className={`p-3 bg-slate-50 rounded-xl ${color}`}>{icon}</div>

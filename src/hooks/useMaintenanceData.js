@@ -1,57 +1,76 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 
-export const useMaintenanceData = (searchTerm) => {
-  const [schedules, setSchedules] = useState([]);
+export const useMaintenanceData = (searchTerm = '') => {
+  const [vehicles, setVehicles] = useState([]); 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSchedules = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('maintenance_schedules')
-        .select('*')
-        .order('next_due_date', { ascending: true });
       
-      if (!error) setSchedules(data || []);
+      // FETCH WITH JOIN: Pulls vehicle data AND the associated tracking row
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          *,
+          maintenance_tracking (*)
+        `)
+        .order('id', { ascending: true });
+
+      if (!error) {
+        setVehicles(data || []);
+      }
       setLoading(false);
     };
 
-    fetchSchedules();
+    fetchData();
 
-    const channel = supabase
-      .channel('maintenance-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_schedules' }, 
-      (payload) => {
-        setSchedules(current => {
-          let updated = [...current];
-          if (payload.eventType === 'INSERT') updated.push(payload.new);
-          else if (payload.eventType === 'UPDATE') {
-            updated = updated.map(item => item.id === payload.new.id ? payload.new : item);
-          } else if (payload.eventType === 'DELETE') {
-            updated = updated.filter(item => item.id !== payload.old.id);
-          }
-          return updated.sort((a, b) => new Date(a.next_due_date || 0) - new Date(b.next_due_date || 0));
-        });
-      })
+    // REALTIME: Listen for Odometer updates in 'vehicles'
+    const vehicleChannel = supabase
+      .channel('vehicles-realtime')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'vehicles' }, 
+        async (payload) => {
+          // When a vehicle updates, we need to ensure we still have its tracking data
+          setVehicles(current => 
+            current.map(v => v.id === payload.new.id ? { ...v, ...payload.new } : v)
+          );
+        }
+      )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // REALTIME: Listen for Reset updates in 'maintenance_tracking'
+    const trackingChannel = supabase
+      .channel('tracking-realtime')
+      .on('postgres_changes', 
+        { event: 'UPDATE', schema: 'public', table: 'maintenance_tracking' }, 
+        (payload) => {
+          setVehicles(current => 
+            current.map(v => v.id === payload.new.vehicle_id 
+              ? { ...v, maintenance_tracking: payload.new } 
+              : v
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => { 
+      supabase.removeChannel(vehicleChannel); 
+      trackingChannel && supabase.removeChannel(trackingChannel);
+    };
   }, []);
 
-  const filteredSchedules = useMemo(() => {
-    const search = searchTerm.toLowerCase();
-    return schedules.filter(s => 
-      s.vehicle_id?.toLowerCase().includes(search) ||
-      s.service_type?.toLowerCase().includes(search)
-    );
-  }, [schedules, searchTerm]);
+  // Filter vehicles based on ID or Bound (Forward/Return)
+  const filteredVehicles = useMemo(() => {
+    const search = (searchTerm || '').toLowerCase();
+    return vehicles.filter(v => {
+      const id = (v.id || '').toLowerCase();
+      const direction = (v.trip_direction || '').toLowerCase();
+      return id.includes(search) || direction.includes(search);
+    });
+  }, [vehicles, searchTerm]);
 
-  const deleteSchedule = async (id) => {
-    if (window.confirm("Remove this maintenance rule?")) {
-      await supabase.from('maintenance_schedules').delete().eq('id', id);
-    }
-  };
-
-  return { filteredSchedules, loading, deleteSchedule };
+  return { vehicles: filteredVehicles, loading };
 };

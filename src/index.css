@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Optimize number rendering for data-heavy displays */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 /* Ensure the Leaflet container stays beneath the Modal Header/Buttons */
 .leaflet-container {
   z-index: 0 !important;

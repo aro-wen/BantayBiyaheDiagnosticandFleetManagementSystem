@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, User, Car, Check } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, User, Car, Check, Info } from 'lucide-react';
 
 const AssignVehicleModal = ({ 
   isOpen, 
@@ -11,6 +11,12 @@ const AssignVehicleModal = ({
 }) => {
   const [selectedDriver, setSelectedDriver] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState('');
+
+  // --- FILTER LOGIC: ONLY INACTIVE VEHICLES ---
+  // We normalize to lowercase to handle any Supabase casing inconsistencies
+  const availableVehicles = useMemo(() => {
+    return vehicles.filter(v => v.activity?.toLowerCase() === 'inactive');
+  }, [vehicles]);
 
   // Reset when modal opens
   useEffect(() => {
@@ -60,9 +66,6 @@ const AssignVehicleModal = ({
                   <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
                 ))}
               </select>
-              <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
             </div>
           </div>
 
@@ -73,30 +76,32 @@ const AssignVehicleModal = ({
             </label>
             <div className="relative">
               <select 
-                className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+                className="w-full p-3 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none disabled:bg-slate-50"
                 value={selectedVehicle}
                 onChange={(e) => setSelectedVehicle(e.target.value)}
+                disabled={availableVehicles.length === 0}
               >
-                <option value="" disabled>-- Choose a Vehicle --</option>
-                {vehicles.length > 0 ? (
-                  vehicles.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.id} {v.plate ? `(${v.plate})` : ''} - {v.status || 'Active'}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No available vehicles</option>
-                )}
+                <option value="" disabled>
+                  {availableVehicles.length > 0 ? "-- Choose a Vehicle --" : "No Available Units"}
+                </option>
+                {availableVehicles.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.id} {v.plate ? `(${v.plate})` : ''}
+                  </option>
+                ))}
               </select>
-              <div className="absolute right-3 top-3.5 pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-              </div>
             </div>
             
-            {/* Helpful Note */}
-            <p className="text-xs text-slate-400 mt-1">
-              Showing {vehicles.length} unassigned vehicles.
-            </p>
+            {/* Conditional Status Note */}
+            {availableVehicles.length > 0 ? (
+              <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                <Check size={10} className="text-green-500" /> Showing {availableVehicles.length} unassigned vehicles.
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-600 font-bold mt-1 flex items-center gap-1">
+                <Info size={10} /> All vehicles are currently Active or Under Maintenance.
+              </p>
+            )}
           </div>
 
         </div>
@@ -111,7 +116,8 @@ const AssignVehicleModal = ({
           </button>
           <button 
             onClick={handleSubmit} 
-            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors shadow-sm text-sm"
+            disabled={availableVehicles.length === 0}
+            className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors shadow-sm text-sm"
           >
             <Check size={16} /> Confirm Assignment
           </button>

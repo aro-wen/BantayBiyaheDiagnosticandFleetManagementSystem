@@ -60,7 +60,7 @@ const DispatcherVehicles = () => {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight uppercase">Fleet Operations</h1>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Fleet Operations</h1>
           <p className="text-slate-500 text-sm font-medium">Real-time status tracking for BantayBiyahe units</p>
         </div>
       </div>
