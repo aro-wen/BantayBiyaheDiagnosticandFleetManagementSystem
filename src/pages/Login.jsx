@@ -1,121 +1,157 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, Lock, User, Radio } from 'lucide-react';
+import { Lock, User, Radio, AlertCircle, Loader2 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+
+// Import the logo from your assets folder
+import bantayLogo from '../assets/BantayBiyaheLogo.svg';
 
 const Login = () => {
   const navigate = useNavigate();
-  const [role, setRole] = useState('tech'); // Default selection
+  const [role, setRole] = useState('tech'); 
+  const [userId, setUserId] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate network delay for realism
-    setTimeout(() => {
-      if (role === 'admin') {
-        navigate('/dispatcher/dashboard');
+    try {
+      // 1. Verify credentials using the secure database function
+      const { data, error: authError } = await supabase.rpc('verify_user_login', {
+        row_id: userId,
+        input_password: password,
+        table_name: role === 'admin' ? 'dispatchers' : 'technicians'
+      });
+
+      if (authError || !data || data.length === 0) {
+        throw new Error("Access Denied: Invalid Credentials");
+      }
+
+      // 2. Store manual session
+      localStorage.setItem('bantay_user', JSON.stringify(data[0]));
+
+      // 3. Route to the correct portal
+      if (data[0].role === 'dispatcher') {
+        navigate('/dispatcher/dashboard'); 
       } else {
         navigate('/technician/jobs');
       }
-    }, 800);
+
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
+      <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-500">
         
-        {/* Brand Header */}
-        <div className="bg-blue-600 p-8 text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
-            <Truck size={32} className="text-white" />
+        {/* Brand Header: Using the imported Asset */}
+        <div className="bg-white p-10 pb-6 text-center">
+          <div className="w-full flex justify-center mb-4">
+            <img 
+              src={bantayLogo} 
+              alt="Bantay Biyahe Logo" 
+              className="w-52 h-auto object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white mb-1">BantayBiyahe</h1>
-          <p className="text-blue-100 text-sm">Fleet Maintenance Management System</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
+            Diagnostic and Fleet Management System
+          </p>
         </div>
 
-        {/* Login Form */}
-        <div className="p-8">
-          <h2 className="text-xl font-bold text-slate-800 mb-6 text-center">System Login</h2>
+        <div className="p-10 pt-4">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-[10px] font-black uppercase italic">
+              <AlertCircle size={18} className="shrink-0" />
+              {error}
+            </div>
+          )}
           
-          <form onSubmit={handleLogin} className="space-y-5">
-            
-            {/* Role Selection (For Demo Purposes) */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+          <form onSubmit={handleLogin} className="space-y-6">
+            {/* Role Selection */}
+            <div className="grid grid-cols-2 gap-4">
               <button
                 type="button"
                 onClick={() => setRole('tech')}
-                className={`p-4 rounded-xl border-2 flex flex-col items-center transition-all ${
+                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
                   role === 'tech' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                    : 'border-slate-100 hover:border-slate-200 text-slate-400'
+                    ? 'border-slate-900 bg-slate-900 text-white shadow-lg' 
+                    : 'border-slate-100 text-slate-400 hover:border-slate-200'
                 }`}
               >
-                <User size={24} className="mb-2" />
-                <span className="text-xs font-bold uppercase">Technician</span>
+                <User size={20} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Technician</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setRole('admin')}
-                className={`p-4 rounded-xl border-2 flex flex-col items-center transition-all ${
+                className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${
                   role === 'admin' 
-                    ? 'border-blue-600 bg-blue-50 text-blue-700' 
-                    : 'border-slate-100 hover:border-slate-200 text-slate-400'
+                    ? 'border-slate-900 bg-slate-900 text-white shadow-lg' 
+                    : 'border-slate-100 text-slate-400 hover:border-slate-200'
                 }`}
               >
-                <Radio size={24} className="mb-2" />
-                <span className="text-xs font-bold uppercase">Dispatcher</span>
+                <Radio size={20} />
+                <span className="text-[10px] font-black uppercase tracking-widest">Dispatcher</span>
               </button>
             </div>
 
-            {/* Inputs */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">User ID</label>
-                <div className="relative">
-                  <User size={18} className="absolute left-3 top-3 text-slate-400" />
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest px-1">
+                  Portal ID
+                </label>
+                <div className="relative group">
+                  <User size={18} className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-slate-900" />
                   <input 
                     type="text" 
-                    defaultValue={role === 'tech' ? 'T-1047' : 'A-001'}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    required
+                    value={userId}
+                    onChange={(e) => setUserId(e.target.value)}
+                    placeholder={role === 'tech' ? "e.g. T-1048" : "e.g. A-002"}
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all"
                   />
                 </div>
               </div>
               
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Password</label>
-                <div className="relative">
-                  <Lock size={18} className="absolute left-3 top-3 text-slate-400" />
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest px-1">
+                  Access Key
+                </label>
+                <div className="relative group">
+                  <Lock size={18} className="absolute left-4 top-3.5 text-slate-300 group-focus-within:text-slate-900" />
                   <input 
                     type="password" 
-                    defaultValue="password123"
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 outline-none transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Submit Button */}
             <button 
               type="submit" 
               disabled={isLoading}
-              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 flex items-center justify-center"
+              className="w-full bg-slate-900 text-white font-black uppercase text-xs tracking-[0.2em] py-5 rounded-2xl hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center active:scale-[0.98]"
             >
               {isLoading ? (
-                <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <Loader2 className="animate-spin" size={20} />
               ) : (
                 'Access Portal'
               )}
             </button>
-
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-xs text-slate-400">
-              v1.0.0 Stable Build • Authorized Personnel Only
-            </p>
-          </div>
         </div>
       </div>
     </div>

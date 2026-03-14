@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useJobs } from '../contexts/JobContext';
 import Toast from '../components/Toast';
+import bantayLogo from '../assets/BantayBiyaheLogo.svg';
 
 const DispatcherLayout = () => {
   const navigate = useNavigate();
