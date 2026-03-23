@@ -27,7 +27,7 @@ const DriverDashboard = () => {
     return () => clearInterval(clockInterval);
   }, []);
 
-  // --- 2. THE "BLINK-PROOF" ROUTE LOGIC ---
+  // --- 2. ROUTE LOGIC ---
   const routeInfo = useMemo(() => {
     if (!vehicleData.lat || !vehicleData.lng) {
       return { current: "SYNCING...", next: "READY", distance: "0.00", direction: "Forward" };
@@ -36,7 +36,6 @@ const DriverDashboard = () => {
     const direction = vehicleData.trip_direction || 'Forward';
     const activeRoute = direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
 
-    // Calculate closest point locally to prevent UI lag/blinking
     const pointsWithDistance = activeRoute.map((stop, index) => ({
       ...stop,
       index,
@@ -57,16 +56,34 @@ const DriverDashboard = () => {
     };
   }, [vehicleData.lat, vehicleData.lng, vehicleData.trip_direction]);
 
-  // --- 3. ACTIONS (RE-DEFINED) ---
+  // --- 3. ACTIONS (ROBUST VERSION) ---
   const toggleTrip = async () => {
     if (vehicleData.activity === 'Under Maintenance') return; 
+
+    // Calculate exactly what we want to send to DB
     const nextActivity = vehicleData.activity === 'Active' ? 'Inactive' : 'Active';
     
-    // Update local state first for instant UI response
-    setVehicleData(prev => ({ ...prev, activity: nextActivity }));
-    
-    // Update Database
-    await supabase.from('vehicles').update({ activity: nextActivity }).eq('id', VEHICLE_ID);
+    console.log(`Manual Toggle Initiated: ${vehicleData.activity} -> ${nextActivity}`);
+
+    try {
+      // Step A: Update Database FIRST with a direct call
+      const { error, data } = await supabase
+        .from('vehicles')
+        .update({ activity: nextActivity })
+        .eq('id', VEHICLE_ID)
+        .select();
+
+      if (error) throw error;
+
+      // Step B: If successful, update local state
+      // We use a functional update to ensure we don't accidentally revert to old data
+      setVehicleData(prev => ({ ...prev, activity: nextActivity }));
+      
+      console.log("Database Update Confirmed:", data);
+    } catch (err) {
+      console.error("DB Error:", err.message);
+      alert("Failed to update status. Check internet connection.");
+    }
   };
 
   const confirmSendSos = async () => {
@@ -143,7 +160,7 @@ const DriverDashboard = () => {
           </div>
         </div>
 
-        {/* ROW 3: POSITION & ROUTE INFO (STABLE) */}
+        {/* ROW 3: POSITION & ROUTE INFO */}
         <div className="flex-[1.2] grid grid-cols-2 gap-1">
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 p-2 flex flex-col justify-center">
             <div className="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
@@ -183,18 +200,18 @@ const DriverDashboard = () => {
             onClick={toggleTrip} 
             className={`rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] border transition-all active:scale-95 
             ${vehicleData.activity === 'Under Maintenance' ? 'opacity-40 bg-slate-900 cursor-not-allowed' : 
-              vehicleData.activity === 'Active' ? 'bg-slate-800 text-slate-400' : 'bg-green-900/30 text-green-400 border-green-500/50'}`}
+              vehicleData.activity === 'Active' ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-600/20 text-green-500 border-green-500/50'}`}
           >
             {vehicleData.activity === 'Active' ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
             {vehicleData.activity === 'Active' ? 'End Trip' : 'Start Trip'}
           </button>
-          <button onClick={() => { setShowSosOverlay(true); setSosStep('MENU'); }} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg">
+          <button onClick={() => { setShowSosOverlay(true); setSosStep('MENU'); }} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg active:scale-95">
             <AlertTriangle size={12} /> SOS Emergency
           </button>
         </div>
       </div>
 
-      {/* SOS OVERLAY CODE ... (Same as your previous version) */}
+      {/* SOS OVERLAY */}
       {showSosOverlay && (
         <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm p-3 flex flex-col">
           {sosStep === 'MENU' && (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { syncVehicleAddress } from '../config/routeConfig';
 
@@ -9,6 +9,9 @@ export const useVehicleData = (vehicleId) => {
     lat: null, lng: null, activity: 'Inactive'
   });
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Use a ref to track if WE are currently updating the DB
+  const isUpdatingManual = useRef(false);
 
   useEffect(() => {
     const init = async () => {
@@ -19,11 +22,7 @@ export const useVehicleData = (vehicleId) => {
         .eq('id', vehicleId)
         .single();
         
-      if (data) {
-        setVehicleData(data);
-        // Process address immediately on load for the Raspberry Pi display
-        await syncVehicleAddress(vehicleId);
-      }
+      if (data) setVehicleData(data);
       setIsLoading(false);
     };
 
@@ -36,16 +35,30 @@ export const useVehicleData = (vehicleId) => {
         table: 'vehicles', 
         filter: `id=eq.${vehicleId}` 
       }, (payload) => {
-        // Update local state with new telemetry from the Pi
-        setVehicleData(prev => ({ ...prev, ...payload.new }));
+        // Only update from Realtime if we aren't mid-manual-toggle
+        if (!isUpdatingManual.current) {
+          setVehicleData(prev => ({ ...prev, ...payload.new }));
+        }
         
-        // Sync addresses in background whenever coordinates update
-        syncVehicleAddress(vehicleId);
+        // Only sync address if coordinates actually changed to save bandwidth
+        if (payload.new.lat || payload.new.lng) {
+          syncVehicleAddress(vehicleId);
+        }
       })
       .subscribe();
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [vehicleId]);
 
-  return { vehicleData, isLoading, setVehicleData };
+  // Wrap setVehicleData to handle the manual guard
+  const manualSetVehicleData = (newData) => {
+    isUpdatingManual.current = true;
+    setVehicleData(newData);
+    // Release the guard after a short delay to allow DB propagation
+    setTimeout(() => { isUpdatingManual.current = false; }, 1000);
+  };
+
+  return { vehicleData, isLoading, setVehicleData: manualSetVehicleData };
 };
