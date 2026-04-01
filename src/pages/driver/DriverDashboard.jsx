@@ -4,7 +4,7 @@ import { useVehicleData } from '../../hooks/useVehicleData';
 import { 
   AlertTriangle, Play, Square, AlertOctagon, CheckCircle,
   CarFront, HeartPulse, Wrench, ShieldAlert, X, Loader2,
-  Thermometer, Battery, Fuel as FuelIcon, MapPin, Truck, Power 
+  Thermometer, Battery, Fuel as FuelIcon, MapPin, Truck
 } from 'lucide-react';
 
 import { calculateDistance, ROUTE_FORWARD, ROUTE_RETURN } from '../../config/routeConfig';
@@ -15,32 +15,23 @@ const DriverDashboard = () => {
 
   // --- 1. DATA & HOOKS ---
   const { vehicleData, isLoading, setVehicleData } = useVehicleData(VEHICLE_ID);
-  const [minLoaderActive, setMinLoaderActive] = useState(true); // 10-second timer state
-  const [isIgnited, setIsIgnited] = useState(false); 
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // SOS State
   const [showSosOverlay, setShowSosOverlay] = useState(false);
-  const [sosStep, setSosStep] = useState('MENU'); 
+  const [sosStep, setSosStep] = useState('MENU');
   const [selectedSosType, setSelectedSosType] = useState(null);
 
-  // --- 2. TIMERS & CLOCK ---
+  // --- 2. CLOCK & AUTO-RESET ---
   useEffect(() => {
-    // Global Clock
     const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
-    
-    // Minimum Loading Timer (For visual effect on cold start)
-    const loaderTimer = setTimeout(() => {
-      setMinLoaderActive(false);
-    }, 10000);
-
-    return () => {
-      clearInterval(clockInterval);
-      clearTimeout(loaderTimer);
-    };
+    return () => clearInterval(clockInterval);
   }, []);
 
-  // --- 3. ROUTE LOGIC ---
+  // --- 3. AUTO-IGNITION LOGIC ---
+  const isIgnited = vehicleData?.activity === 'System Operational' || vehicleData?.activity === 'Active';
+
+  // --- 4. ROUTE LOGIC ---
   const routeInfo = useMemo(() => {
     const currentAddr = vehicleData?.current_address || "SYNCING...";
     const nextAddr = vehicleData?.next_address || "READY";
@@ -53,7 +44,6 @@ const DriverDashboard = () => {
     if (!isOutOfBounds) {
       const direction = vehicleData?.trip_direction || 'Forward';
       const activeRoute = direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
-      
       const nextStop = activeRoute.find(stop => stop.name === nextAddr) || activeRoute[0];
 
       if (vehicleData?.lat && nextStop) {
@@ -78,30 +68,10 @@ const DriverDashboard = () => {
     };
   }, [vehicleData?.current_address, vehicleData?.next_address, vehicleData?.lat, vehicleData?.lng]);
 
-  // --- 4. OPERATIONAL STATUS LOGIC ---
-  // Determine if the vehicle is ready to drive to handle all UI rendering uniformly
-  const isOperational = vehicleData?.activity === 'System Operational' || vehicleData?.activity === 'Active';
-
   // --- 5. ACTIONS ---
-  const handleIgnition = async () => {
-    setIsIgnited(true); 
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({ activity: 'Active' })
-        .eq('id', VEHICLE_ID);
-
-      if (error) throw error;
-      setVehicleData(prev => ({ ...prev, activity: 'Active' }));
-    } catch (err) {
-      console.error("Ignition Error:", err.message);
-      setIsIgnited(false);
-    }
-  };
-
   const toggleTrip = async () => {
     if (vehicleData?.activity === 'Under Maintenance') return; 
-    const nextActivity = isOperational ? 'Inactive' : 'Active';
+    const nextActivity = vehicleData?.activity === 'Active' ? 'System Operational' : 'Active';
     
     try {
       const { error } = await supabase
@@ -111,7 +81,6 @@ const DriverDashboard = () => {
 
       if (error) throw error;
       setVehicleData(prev => ({ ...prev, activity: nextActivity }));
-      if (nextActivity === 'Inactive') setIsIgnited(false);
     } catch (err) {
       console.error("DB Error:", err.message);
     }
@@ -129,7 +98,10 @@ const DriverDashboard = () => {
 
     if (!error) {
       setSosStep('SUCCESS');
-      setTimeout(() => { setShowSosOverlay(false); setSosStep('MENU'); }, 2000);
+      setTimeout(() => { 
+        setShowSosOverlay(false); 
+        setSosStep('MENU'); 
+      }, 2000);
     }
   };
 
@@ -154,32 +126,14 @@ const DriverDashboard = () => {
     );
   };
 
-  // --- 7. INITIALIZING / BOOT SCREEN ---
-  // The magic fix: If the vehicle is already operational, bypass the minLoaderActive timer!
-  const showLoadingScreen = isLoading || (!isOperational && minLoaderActive) || (isIgnited && !isOperational);
-
-  if (showLoadingScreen) {
+  // --- 7. RENDER LOGIC ---
+  if (isLoading) {
     return (
-      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-6 select-none font-sans">
-        <div className="relative mb-8">
-          <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse"></div>
-          <div className="relative w-24 h-24 bg-slate-900 border-2 border-blue-500/50 rounded-3xl flex items-center justify-center shadow-2xl">
-            <Truck size={48} className="text-blue-500 animate-bounce" />
-          </div>
-        </div>
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter italic">BantayBiyahe</h1>
-          <div className="flex items-center gap-3 justify-center">
-            <Loader2 size={16} className="text-blue-500 animate-spin" />
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">Initializing Systems...</p>
-          </div>
-        </div>
-        <div className="absolute bottom-10 left-10 text-[8px] font-mono space-y-1 hidden md:block">
-          <p className="text-slate-600">{`> CONNECTING TO NODE_01`}</p>
-          <p className="text-slate-600">{`> SYNCING TELEMETRY ${VEHICLE_ID}`}</p>
-          <p className={!isLoading ? "text-blue-500" : "text-slate-600"}>{isLoading ? "> FETCHING..." : "> SYNC COMPLETE"}</p>
-          <p className={isOperational ? "text-green-500" : "text-slate-600"}>{isOperational ? "> SYSTEM OPERATIONAL" : "> WAITING FOR COMMAND"}</p>
-        </div>
+      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center">
+        <Loader2 className="text-blue-500 animate-spin" size={48} />
+        <p className="text-slate-500 text-[10px] font-bold uppercase mt-4 tracking-widest text-center italic">
+          Syncing Portal...
+        </p>
       </div>
     );
   }
@@ -187,27 +141,21 @@ const DriverDashboard = () => {
   return (
     <div className="h-screen w-screen bg-black text-white font-sans overflow-hidden flex flex-col p-[1vh] select-none relative">
       
-      {/* IGNITION OVERLAY */}
-      {!isOperational && vehicleData?.activity === 'Inactive' && (
-        <div className="absolute inset-0 z-[60] bg-slate-950/40 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-700">
-          <button 
-            onClick={handleIgnition}
-            className="group relative flex flex-col items-center gap-6 p-12 rounded-[3rem] transition-all hover:bg-white/5 active:scale-95"
-          >
-            <div className="w-32 h-32 bg-slate-900 rounded-full border-4 border-blue-500 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.3)] group-hover:shadow-blue-500/50 transition-all">
-              <Power size={48} className="text-blue-500 group-hover:scale-110 transition-transform" />
+      {!isIgnited && (
+        <div className="absolute inset-0 z-[60] bg-slate-950/80 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+            <div className="w-24 h-24 bg-slate-900 border-2 border-slate-800 rounded-3xl flex items-center justify-center mb-6 shadow-2xl">
+                <Truck size={48} className="text-slate-700 animate-pulse" />
             </div>
-            <div className="text-center">
-              <p className="text-white font-black text-2xl uppercase tracking-tighter italic">System Start</p>
-              <p className="text-blue-400 text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse mt-2">Tap to Initialize Portal</p>
-            </div>
-          </button>
+            <h2 className="text-xl font-black uppercase tracking-widest text-slate-400 italic">OBD-II STANDBY</h2>
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.3em] mt-2 italic">Waiting for vehicle signal...</p>
         </div>
       )}
 
-      {/* MAIN DASHBOARD */}
-      <div className={`flex-1 rounded-xl border flex flex-col gap-1 p-1 shadow-2xl transition-all duration-1000 ${
-        !isOperational ? 'bg-slate-950/30 border-slate-800/40 grayscale-[0.8] brightness-50' : 'bg-slate-900/30 border-slate-700 grayscale-0 brightness-100'
+      {/* MAIN DASHBOARD - FIXED CSS CONDITION */}
+      <div className={`flex-1 rounded-xl border flex flex-col gap-1 p-1 shadow-2xl transition-all duration-700 ${
+        isIgnited 
+        ? 'bg-slate-900/40 border-slate-700 grayscale-0 brightness-100' 
+        : 'bg-slate-950/40 border-slate-800 grayscale brightness-75'
       }`}>
         
         {/* ROW 1: SPEED & RPM */}
@@ -248,17 +196,12 @@ const DriverDashboard = () => {
           </div>
         </div>
 
-        {/* ROW 3: POSITION & ROUTE INFO */}
+        {/* ROW 3: POSITION & MIL */}
         <div className="flex-[1.2] grid grid-cols-2 gap-1">
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 p-2 flex flex-col justify-center">
-            <div className="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
-              <div className="flex items-center gap-2">
-                <MapPin size={12} className="text-cyan-500"/>
-                <span className="text-[10px] font-black uppercase text-slate-100 truncate max-w-[100px]">{routeInfo.current}</span>
-              </div>
-              <div className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase ${routeInfo.direction === 'Return' ? 'bg-blue-900/40 text-blue-400' : 'bg-cyan-900/40 text-cyan-400'}`}>
-                {routeInfo.direction}
-              </div>
+            <div className="flex items-center gap-2 mb-1 border-b border-white/5 pb-1">
+              <MapPin size={12} className="text-cyan-500"/>
+              <span className="text-[10px] font-black uppercase text-slate-100 truncate">{routeInfo.current}</span>
             </div>
             <div className="flex justify-between items-center">
               <div>
@@ -270,28 +213,27 @@ const DriverDashboard = () => {
           </div>
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex items-center justify-center">
             {isMilActive(vehicleData?.mil) ? (
-              <div className={`flex items-center gap-2 ${getStatusColor(vehicleData?.mil, 'MIL')}`}>
+              <div className="flex items-center gap-2 text-red-500 animate-pulse">
                 <AlertOctagon size={24} /><span className="text-[10px] font-black uppercase tracking-tighter">Check Engine</span>
               </div>
             ) : (
               <div className="text-green-500 flex items-center gap-2">
-                <CheckCircle size={24} /><div className="flex flex-col"><span className="text-[10px] font-black uppercase leading-none">System</span><span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Operational</span></div>
+                <CheckCircle size={24} /><div className="flex flex-col"><span className="text-[10px] font-black uppercase leading-none">System</span><span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Healthy</span></div>
               </div>
             )}
           </div>
         </div>
 
-        {/* ROW 4: BUTTONS */}
+        {/* ROW 4: ACTIONS */}
         <div className="flex-[0.6] grid grid-cols-2 gap-1">
           <button 
             disabled={vehicleData?.activity === 'Under Maintenance'}
             onClick={toggleTrip} 
             className={`rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] border transition-all active:scale-95 
-            ${vehicleData?.activity === 'Under Maintenance' ? 'opacity-40 bg-slate-900 cursor-not-allowed' : 
-              isOperational ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-600/20 text-green-500 border-green-500/50'}`}
+            ${vehicleData?.activity === 'Active' ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-600/20 text-green-500 border-green-500/50'}`}
           >
-            {isOperational ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
-            {isOperational ? 'End Trip' : 'Start Trip'}
+            {vehicleData?.activity === 'Active' ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+            {vehicleData?.activity === 'Active' ? 'End Trip' : 'Start Trip'}
           </button>
           <button onClick={() => setShowSosOverlay(true)} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg active:scale-95">
             <AlertTriangle size={12} /> SOS Emergency
@@ -304,19 +246,19 @@ const DriverDashboard = () => {
         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm p-3 flex flex-col">
           <div className="flex justify-between items-center mb-2">
             <h2 className="text-xl font-black text-white uppercase tracking-tighter italic">Emergency Alert</h2>
-            <button onClick={() => setShowSosOverlay(false)} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button>
+            <button onClick={() => { setShowSosOverlay(false); setSosStep('MENU'); }} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button>
           </div>
           <div className="flex-1 grid grid-cols-2 gap-2">
-              <button onClick={() => { setSelectedSosType({reason: 'Accident'}); setSosStep('CONFIRM'); }} className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600">
+              <button onClick={() => { setSelectedSosType({reason: 'Accident'}); confirmSendSos(); }} className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600">
                 <CarFront size={32} className="text-red-500" /><span className="text-[12px] font-black uppercase text-red-500">Accident</span>
               </button>
-              <button onClick={() => { setSelectedSosType({reason: 'Medical'}); setSosStep('CONFIRM'); }} className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600">
+              <button onClick={() => { setSelectedSosType({reason: 'Medical'}); confirmSendSos(); }} className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600">
                 <HeartPulse size={32} className="text-rose-500" /><span className="text-[12px] font-black uppercase text-rose-500">Medical</span>
               </button>
-              <button onClick={() => { setSelectedSosType({reason: 'Breakdown'}); setSosStep('CONFIRM'); }} className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600">
+              <button onClick={() => { setSelectedSosType({reason: 'Breakdown'}); confirmSendSos(); }} className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600">
                 <Wrench size={32} className="text-amber-500" /><span className="text-[12px] font-black uppercase text-amber-500">Breakdown</span>
               </button>
-              <button onClick={() => { setSelectedSosType({reason: 'Threat'}); setSosStep('CONFIRM'); }} className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500">
+              <button onClick={() => { setSelectedSosType({reason: 'Threat'}); confirmSendSos(); }} className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500">
                 <ShieldAlert size={32} className="text-slate-300" /><span className="text-[12px] font-black uppercase text-slate-300">Security</span>
               </button>
           </div>
