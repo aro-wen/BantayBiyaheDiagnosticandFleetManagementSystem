@@ -1,36 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   X, Activity, Gauge, Thermometer, Battery, Droplet, 
-  AlertTriangle, CheckCircle, MapPin 
+  AlertTriangle, CheckCircle, MapPin, Power, AlertOctagon, Loader2
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import StatusBadge from './StatusBadge';
 import { useJobs } from '../contexts/JobContext'; 
-
-// --- IMPORT THRESHOLD HELPERS ---
 import { getStatusColor, isMilActive } from '../config/thresholds'; 
+import { useVehicleDTC } from '../hooks/useVehicleDTC'; // Added the new hook
 
-function MapResizer() {
-  const map = useMap();
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-    }, 400); 
-    return () => clearTimeout(timer);
-  }, [map]);
-  return null;
-}
-
-const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
-  const { dtcs, vehicles } = useJobs(); 
+const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
+  const { vehicles } = useJobs(); 
   const [activeTab, setActiveTab] = useState('diagnostics');
+
+  // Fetch live translated DTCs for this specific vehicle
+  const { translatedDTCs, hasFaults, isLoading: dtcLoading } = useVehicleDTC(vehicle?.id);
 
   if (!isOpen || !vehicle) return null;
 
   const liveVehicle = vehicles.find(v => v.id === vehicle.id) || vehicle;
-  const vehicleDtcs = dtcs.filter(d => d.vehicle_id === liveVehicle.id);
-  
   const milActive = isMilActive(liveVehicle.mil);
 
   return (
@@ -40,9 +26,27 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
         {/* Header */}
         <div className="relative z-20 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-start bg-white shrink-0">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1">
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 truncate uppercase tracking-tight">{liveVehicle.id}</h2>
-              <StatusBadge type={liveVehicle.status} className="scale-75 md:scale-100 origin-left" />
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1.5">
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 truncate uppercase tracking-tight">
+                {liveVehicle.id}
+              </h2>
+              
+              {/* --- DUAL BADGES (ROUNDED SQUARES) --- */}
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border 
+                  ${liveVehicle.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' :
+                    liveVehicle.activity === 'Under Maintenance' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                    'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  {liveVehicle.activity || 'Inactive'}
+                </span>
+
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border animate-in fade-in
+                  ${liveVehicle.status === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' :
+                    liveVehicle.status === 'Warning' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                    'bg-green-100 text-green-700 border-green-200'}`}>
+                  {liveVehicle.status || 'NORMAL'}
+                </span>
+              </div>
             </div>
             <p className="text-[10px] md:text-sm text-slate-400 font-semibold uppercase tracking-widest">Plate: {liveVehicle.plate}</p>
           </div>
@@ -54,21 +58,17 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
         {/* Tab Navigation */}
         <div className="px-4 md:px-8 pt-2 bg-slate-50 border-b border-slate-100 overflow-x-auto no-scrollbar shrink-0">
           <div className="flex gap-4 md:gap-6 whitespace-nowrap">
-            {['diagnostics', 'dtc', 'location'].map((tab) => {
-              const isActive = activeTab === tab;
-              const baseStyles = "pb-4 text-xs md:text-sm font-bold uppercase tracking-widest transition-all border-b-2";
-              const activeStyles = "border-blue-600 text-blue-600";
-              const inactiveStyles = "border-transparent text-slate-400 hover:text-slate-600";
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`${baseStyles} ${isActive ? activeStyles : inactiveStyles}`}
-                >
-                  {tab === 'dtc' ? 'DTC Codes' : tab}
-                </button>
-              );
-            })}
+            {['diagnostics', 'dtc', 'location'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`pb-4 text-xs md:text-sm font-bold uppercase tracking-widest transition-all border-b-2 ${
+                  activeTab === tab ? "border-blue-600 text-blue-600" : "border-transparent text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                {tab === 'dtc' ? 'DTC Codes' : tab}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -103,43 +103,56 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
                 icon={<Droplet size={18} />} 
               />
               
-              <div className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+              {/* --- MIL STATUS CARD --- */}
+              <div className={`bg-white p-3 md:p-5 rounded-xl border shadow-sm flex items-center justify-between ${
+                milActive ? 'border-red-200 bg-red-50' : 'border-slate-200'
+              }`}>
                 <div className="min-w-0">
                   <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">MIL Status</div>
-                  <div className={`text-sm md:text-xl uppercase font-bold ${getStatusColor(liveVehicle.mil, 'MIL')}`}>
-                    {milActive ? 'ACTIVE' : 'OFF'}
+                  <div className={`text-sm md:text-xl uppercase font-black ${
+                    milActive ? 'text-red-600 animate-pulse' : 'text-green-600'
+                  }`}>
+                    {milActive ? 'CHECK ENGINE' : 'OPERATIONAL'}
                   </div>
                 </div>
-                <div className={`p-2 rounded-full ${milActive ? 'bg-amber-50' : 'bg-green-50'}`}>
-                   {milActive ? <AlertTriangle size={20} className="text-amber-500" /> : <CheckCircle size={20} className="text-green-500" />}
+                <div className={`p-2 rounded-full ${
+                  milActive ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                }`}>
+                   {milActive ? <AlertOctagon size={20} /> : <CheckCircle size={20} />}
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB 2: DTC CODES */}
+          {/* TAB 2: DTC CODES (INTEGRATED WITH NEW HOOK) */}
           {activeTab === 'dtc' && (
             <div className="space-y-3">
-              {vehicleDtcs.length > 0 ? (
-                vehicleDtcs.map((dtc) => (
-                  <div key={dtc.id} className="p-4 rounded-xl border flex items-start gap-4 bg-red-50 border-red-100">
-                    <AlertTriangle size={18} className="text-red-500 mt-1 shrink-0" />
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-slate-800 uppercase leading-none">{dtc.code}</span>
-                        <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded-full bg-red-200 text-red-800">
-                          {dtc.severity}
+              {dtcLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed animate-pulse">
+                  <Loader2 size={32} className="text-blue-500 animate-spin mb-3" />
+                  <h3 className="text-sm font-bold text-slate-800 uppercase">Scanning Systems</h3>
+                  <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mt-1">Retrieving OBD-II Telemetry</p>
+                </div>
+              ) : hasFaults ? (
+                translatedDTCs.map((fault, index) => (
+                  <div key={index} className="p-4 rounded-xl border flex items-start gap-4 bg-red-50 border-red-100 shadow-sm animate-in slide-in-from-bottom-2">
+                    <AlertTriangle size={20} className="text-red-500 mt-1 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="font-bold text-slate-800 uppercase leading-none">{fault.code}</span>
+                        <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded-md bg-red-200 text-red-800 tracking-widest truncate">
+                          {fault.category}
                         </span>
                       </div>
-                      <p className="text-xs md:text-sm text-slate-600 font-semibold leading-relaxed">{dtc.description}</p>
+                      <p className="text-xs md:text-sm text-slate-700 font-semibold leading-relaxed">{fault.description}</p>
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
-                  <CheckCircle size={48} className="text-green-200 mb-3" />
+                <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed animate-in zoom-in-95 duration-300">
+                  <CheckCircle size={48} className="text-green-400 mb-3" />
                   <h3 className="text-sm font-bold text-slate-800 uppercase">Systems Healthy</h3>
-                  <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mt-1">No fault codes detected</p>
+                  <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mt-1">No fault codes detected by OBD-II</p>
                 </div>
               )}
             </div>
@@ -147,15 +160,21 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
 
           {/* TAB 3: LOCATION */}
           {activeTab === 'location' && (
-            <div className="space-y-4 h-full flex flex-col min-h-[35px]">
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shrink-0">
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Live Coordinates</p>
-                <p className="text-xs font-mono font-bold text-slate-700 uppercase">
-                  {liveVehicle.lat || 0}° N, {liveVehicle.lng || 0}° E
-                </p>
-                <div className="mt-3 border-t border-slate-50 pt-3">
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Activity</p>
+                    <p className="text-xs font-bold text-slate-700 uppercase">{liveVehicle.activity}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Direction</p>
+                    <p className="text-xs font-bold text-blue-600 uppercase">{liveVehicle.trip_direction || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="mt-4 border-t border-slate-50 pt-4">
                   <p className="text-[9px] font-bold text-blue-600 uppercase tracking-widest mb-1">Current Address</p>
-                  <p className="text-xs font-semibold text-slate-800 uppercase leading-snug">
+                  <p className="text-sm font-semibold text-slate-800 uppercase leading-snug">
                     {liveVehicle.current_address || 'Calculating...'}
                   </p>
                 </div>
@@ -168,12 +187,13 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle, mapKey }) => {
   );
 };
 
+// Subcomponent for Diagnostic Tab
 const DiagCard = ({ title, value, unit, icon, color = "text-slate-700" }) => (
   <div className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
     <div className="min-w-0">
       <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{title}</div>
       <div className="flex items-baseline gap-1">
-        <span className={`text-sm md:text-2xl font-bold truncate ${color}`}>{value}</span>
+        <span className={`text-sm md:text-2xl font-black truncate ${color}`}>{value}</span>
         <span className="text-[10px] md:text-sm font-semibold text-slate-400">{unit}</span>
       </div>
     </div>

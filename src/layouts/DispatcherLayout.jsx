@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Map, 
-  Truck, 
+  Bus, 
   Users, 
   Bell, 
   LogOut,
@@ -51,7 +51,7 @@ const DispatcherLayout = () => {
 
         <nav className="flex-1 px-3 py-6 space-y-1">
           {/* <NavItem to="/dispatcher/dashboard" icon={<LayoutDashboard size={20} />} label="Fleet Overview" /> */}
-          <NavItem to="/dispatcher/vehicles" icon={<Truck size={20} />} label="Vehicles" />
+          <NavItem to="/dispatcher/vehicles" icon={<Bus size={20} />} label="Vehicles" />
           <NavItem to="/dispatcher/assign" icon={<Wrench size={20} />} label="Maintenance Jobs" />
           <NavItem to="/dispatcher/mileage" icon={<Gauge size={20} />} label="Mileage Checker" />
           {/* <NavItem to="/dispatcher/schedule" icon={<Calendar size={20} />} label="Maintenance Schedule" /> */}

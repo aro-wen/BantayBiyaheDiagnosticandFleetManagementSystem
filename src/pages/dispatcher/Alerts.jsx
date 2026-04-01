@@ -5,7 +5,7 @@ import { useJobs } from '../../contexts/JobContext';
 import { 
   AlertTriangle, Info, CheckCircle, Trash2, Wrench, 
   ChevronDown, ChevronUp, Activity, Gauge, Calendar, Bell,
-  CheckCheck, XCircle, Siren, Truck 
+  CheckCheck, XCircle, Siren, Bus 
 } from 'lucide-react';
 import CreateJobModal from '../../components/CreateJobModal';
 import { useAlertManagement } from '../../hooks/useAlertManagement';
@@ -94,7 +94,7 @@ const VehicleAlertGroup = ({ vehicleId, data, isExpanded, onToggle, onJob, onDel
       <div onClick={onToggle} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'border-b border-slate-100' : ''}`}>
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl ${data.hasSOS ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-100 text-slate-400'}`}>
-            {data.hasSOS ? <Siren size={24} /> : <Truck size={24} />}
+            {data.hasSOS ? <Siren size={24} /> : <Bus size={24} />}
           </div>
           <div>
             {/* Softened heading weight */}

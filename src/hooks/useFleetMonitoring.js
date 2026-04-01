@@ -1,5 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useJobs } from '../contexts/JobContext';
+import { syncVehicleAddress } from '../config/routeConfig'; // Ensure this path is correct
 
 export const useFleetMonitoring = () => {
   const { vehicles } = useJobs();
@@ -8,8 +9,19 @@ export const useFleetMonitoring = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // 🔥 New state to fix Leaflet grey areas
   const [mapKey, setMapKey] = useState(0);
+
+  // --- 🔥 NEW: AUTOMATIC ROUTE SYNCING ---
+  // This effect watches the raw vehicle data. When a coordinate changes,
+  // it triggers the distance math in routing.js to update the address.
+  useEffect(() => {
+    vehicles.forEach(vehicle => {
+      // Only sync if the vehicle is 'Active' and has coordinates
+      if (vehicle.activity?.toLowerCase() === 'active' && vehicle.lat && vehicle.lng) {
+        syncVehicleAddress(vehicle.id);
+      }
+    });
+  }, [vehicles]); // Fires whenever useJobs receives a real-time update
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
@@ -17,7 +29,6 @@ export const useFleetMonitoring = () => {
         v.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
         (v.plate && v.plate.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      // Normalize both sides to lowercase to handle Supabase casing inconsistencies
       const currentStatus = v.activity?.toLowerCase() || '';
       const targetFilter = statusFilter.toLowerCase();
 
@@ -32,14 +43,11 @@ export const useFleetMonitoring = () => {
   const openModal = useCallback((vehicle) => {
     setSelectedVehicle(vehicle);
     setIsModalOpen(true);
-    // 🔥 Increment key to force MapContainer to re-mount/re-size
     setMapKey(prev => prev + 1);
   }, []);
 
   const closeModal = useCallback(() => {
     setIsModalOpen(false);
-    // Don't null the vehicle immediately so the modal exit animation
-    // has data to show while it fades out
     setTimeout(() => setSelectedVehicle(null), 300);
   }, []);
 
@@ -51,7 +59,7 @@ export const useFleetMonitoring = () => {
     setStatusFilter,
     selectedVehicle,
     isModalOpen,
-    mapKey, // 🔥 Pass this to your Modal's MapContainer key attribute
+    mapKey,
     openModal,
     closeModal
   };

@@ -4,7 +4,7 @@ import { useVehicleData } from '../../hooks/useVehicleData';
 import { 
   AlertTriangle, Play, Square, AlertOctagon, CheckCircle,
   CarFront, HeartPulse, Wrench, ShieldAlert, X, Loader2,
-  Thermometer, Battery, Fuel as FuelIcon, MapPin
+  Thermometer, Battery, Fuel as FuelIcon, MapPin, Truck, Power 
 } from 'lucide-react';
 
 import { calculateDistance, ROUTE_FORWARD, ROUTE_RETURN } from '../../config/routeConfig';
@@ -15,6 +15,8 @@ const DriverDashboard = () => {
 
   // --- 1. DATA & HOOKS ---
   const { vehicleData, isLoading, setVehicleData } = useVehicleData(VEHICLE_ID);
+  const [minLoaderActive, setMinLoaderActive] = useState(true); // 5-second timer state
+  const [isIgnited, setIsIgnited] = useState(false); 
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // SOS State
@@ -22,67 +24,96 @@ const DriverDashboard = () => {
   const [sosStep, setSosStep] = useState('MENU'); 
   const [selectedSosType, setSelectedSosType] = useState(null);
 
+  // --- 2. TIMERS & CLOCK ---
   useEffect(() => {
+    // Global Clock
     const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(clockInterval);
+    
+    // Minimum 5-second Loading Timer
+    const loaderTimer = setTimeout(() => {
+      setMinLoaderActive(false);
+    }, 10000);
+
+    return () => {
+      clearInterval(clockInterval);
+      clearTimeout(loaderTimer);
+    };
   }, []);
 
-  // --- 2. ROUTE LOGIC ---
+    // --- 3. ROUTE LOGIC (WITH OUT-OF-BOUND DISTANCE HIDING) ---
   const routeInfo = useMemo(() => {
-    if (!vehicleData.lat || !vehicleData.lng) {
-      return { current: "SYNCING...", next: "READY", distance: "0.00", direction: "Forward" };
+    const currentAddr = vehicleData.current_address || "SYNCING...";
+    const nextAddr = vehicleData.next_address || "READY";
+    
+    // Logical Flags
+    const isOutOfBounds = currentAddr === "OUT OF BOUNDARY";
+    const isDeviated = currentAddr === "OUT OF ROUTE" || isOutOfBounds;
+
+    // Calculate distance only if we are within valid route boundaries
+    let distDisplay = "0.00";
+    
+    if (!isOutOfBounds) {
+      const direction = vehicleData.trip_direction || 'Forward';
+      const activeRoute = direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
+      
+      // Find the coordinate of the "Next Stop" to show distance
+      const nextStop = activeRoute.find(stop => stop.name === nextAddr) || activeRoute[0];
+
+      if (vehicleData.lat && nextStop) {
+        distDisplay = calculateDistance(
+          vehicleData.lat, 
+          vehicleData.lng, 
+          nextStop.lat, 
+          nextStop.lng
+        ).toFixed(2);
+      }
+    } else {
+      // When Out of Bounds, we force the distance to a null state or "---"
+      distDisplay = "---";
     }
 
-    const direction = vehicleData.trip_direction || 'Forward';
-    const activeRoute = direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
-
-    const pointsWithDistance = activeRoute.map((stop, index) => ({
-      ...stop,
-      index,
-      dist: calculateDistance(vehicleData.lat, vehicleData.lng, stop.lat, stop.lng)
-    }));
-
-    const sorted = pointsWithDistance.sort((a, b) => a.dist - b.dist);
-    const closest = sorted[0];
-    
-    const nextIndex = closest.index + 1;
-    const nextStop = nextIndex < activeRoute.length ? activeRoute[nextIndex] : closest;
-
     return {
-      current: closest.name,
-      next: nextIndex < activeRoute.length ? nextStop.name : "TERMINAL",
-      distance: calculateDistance(vehicleData.lat, vehicleData.lng, nextStop.lat, nextStop.lng).toFixed(2),
-      direction: direction
+      current: currentAddr,
+      next: nextAddr,
+      distance: distDisplay,
+      direction: vehicleData.trip_direction || 'Forward',
+      isDeviated: isDeviated,
+      isOutOfBounds: isOutOfBounds
     };
-  }, [vehicleData.lat, vehicleData.lng, vehicleData.trip_direction]);
+  }, [vehicleData.current_address, vehicleData.next_address, vehicleData.lat, vehicleData.lng]);
 
-  // --- 3. ACTIONS (ROBUST VERSION) ---
-  const toggleTrip = async () => {
-    if (vehicleData.activity === 'Under Maintenance') return; 
-
-    // Calculate exactly what we want to send to DB
-    const nextActivity = vehicleData.activity === 'Active' ? 'Inactive' : 'Active';
-    
-    console.log(`Manual Toggle Initiated: ${vehicleData.activity} -> ${nextActivity}`);
-
+  // --- 4. ACTIONS ---
+  const handleIgnition = async () => {
+    setIsIgnited(true); 
     try {
-      // Step A: Update Database FIRST with a direct call
-      const { error, data } = await supabase
+      const { error } = await supabase
         .from('vehicles')
-        .update({ activity: nextActivity })
-        .eq('id', VEHICLE_ID)
-        .select();
+        .update({ activity: 'Active' })
+        .eq('id', VEHICLE_ID);
 
       if (error) throw error;
+      setVehicleData(prev => ({ ...prev, activity: 'Active' }));
+    } catch (err) {
+      console.error("Ignition Error:", err.message);
+      setIsIgnited(false);
+    }
+  };
 
-      // Step B: If successful, update local state
-      // We use a functional update to ensure we don't accidentally revert to old data
+  const toggleTrip = async () => {
+    if (vehicleData.activity === 'Under Maintenance') return; 
+    const nextActivity = vehicleData.activity === 'Active' ? 'Inactive' : 'Active';
+    
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ activity: nextActivity })
+        .eq('id', VEHICLE_ID);
+
+      if (error) throw error;
       setVehicleData(prev => ({ ...prev, activity: nextActivity }));
-      
-      console.log("Database Update Confirmed:", data);
+      if (nextActivity === 'Inactive') setIsIgnited(false);
     } catch (err) {
       console.error("DB Error:", err.message);
-      alert("Failed to update status. Check internet connection.");
     }
   };
 
@@ -99,13 +130,10 @@ const DriverDashboard = () => {
     if (!error) {
       setSosStep('SUCCESS');
       setTimeout(() => { setShowSosOverlay(false); setSosStep('MENU'); }, 2000);
-    } else {
-      setSosStep('MENU');
-      alert("SOS Failed.");
     }
   };
 
-  // --- 4. GAUGE COMPONENT ---
+  // --- 5. GAUGE COMPONENT ---
   const RPMGauge = ({ rpm }) => {
     const T = VEHICLE_THRESHOLDS.RPM;
     const percentage = Math.min(rpm / (T.MAX + 1000), 1);
@@ -126,10 +154,58 @@ const DriverDashboard = () => {
     );
   };
 
-  // --- 5. RENDER ---
+  // --- 6. INITIALIZING / BOOT SCREEN ---
+  if (isLoading || minLoaderActive || (isIgnited && vehicleData.activity !== 'Active')) {
+    return (
+      <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-6 select-none font-sans">
+        <div className="relative mb-8">
+          <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-2xl animate-pulse"></div>
+          <div className="relative w-24 h-24 bg-slate-900 border-2 border-blue-500/50 rounded-3xl flex items-center justify-center shadow-2xl">
+            <Truck size={48} className="text-blue-500 animate-bounce" />
+          </div>
+        </div>
+        <div className="text-center space-y-2">
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter italic">BantayBiyahe</h1>
+          <div className="flex items-center gap-3 justify-center">
+            <Loader2 size={16} className="text-blue-500 animate-spin" />
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">Initializing Systems...</p>
+          </div>
+        </div>
+        <div className="absolute bottom-10 left-10 text-[8px] font-mono text-slate-600 space-y-1 hidden md:block">
+          <p>{`> CONNECTING TO NODE_01`}</p>
+          <p>{`> SYNCING TELEMETRY ${VEHICLE_ID}`}</p>
+          <p className={!isLoading ? "text-blue-500" : ""}>{isLoading ? "> FETCHING..." : "> SYNC COMPLETE"}</p>
+          <p className={!minLoaderActive ? "text-green-500" : ""}>{minLoaderActive ? "> LOADING KERNEL..." : "> KERNEL READY"}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen w-screen bg-black text-white font-sans overflow-hidden flex flex-col p-[1vh] select-none">
-      <div className="flex-1 bg-slate-900/30 rounded-xl border border-slate-800/40 flex flex-col gap-1 p-1 shadow-2xl">
+    <div className="h-screen w-screen bg-black text-white font-sans overflow-hidden flex flex-col p-[1vh] select-none relative">
+      
+      {/* IGNITION OVERLAY */}
+      {!isIgnited && vehicleData.activity === 'Inactive' && (
+        <div className="absolute inset-0 z-[60] bg-slate-950/40 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-700">
+          <button 
+            onClick={handleIgnition}
+            className="group relative flex flex-col items-center gap-6 p-12 rounded-[3rem] transition-all hover:bg-white/5 active:scale-95"
+          >
+            <div className="w-32 h-32 bg-slate-900 rounded-full border-4 border-blue-500 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.3)] group-hover:shadow-blue-500/50 transition-all">
+              <Power size={48} className="text-blue-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <div className="text-center">
+              <p className="text-white font-black text-2xl uppercase tracking-tighter italic">System Start</p>
+              <p className="text-blue-400 text-[10px] font-bold uppercase tracking-[0.4em] animate-pulse mt-2">Tap to Initialize Portal</p>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* MAIN DASHBOARD */}
+      <div className={`flex-1 rounded-xl border border-slate-800/40 flex flex-col gap-1 p-1 shadow-2xl transition-all duration-1000 ${
+        vehicleData.activity !== 'Active' ? 'bg-slate-950/30 grayscale-[0.8] brightness-50' : 'bg-slate-900/30 grayscale-0 brightness-100'
+      }`}>
         
         {/* ROW 1: SPEED & RPM */}
         <div className="flex-[2] grid grid-cols-2 gap-1">
@@ -150,13 +226,22 @@ const DriverDashboard = () => {
         {/* ROW 2: TELEMETRY */}
         <div className="flex-[0.5] grid grid-cols-3 gap-1">
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
-            <Thermometer size={14} className="text-slate-500"/><span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.temp, 'TEMP')}`}>{vehicleData.temp}°</span>
+            <Thermometer size={14} className="text-slate-500"/>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.temp, 'TEMP')}`}>
+              {vehicleData.temp !== null ? `${vehicleData.temp}°` : '---'}
+            </span>
           </div>
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
-            <Battery size={14} className="text-slate-500"/><span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.battery, 'BATTERY')}`}>{vehicleData.battery}V</span>
+            <Battery size={14} className="text-slate-500"/>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.battery, 'BATTERY')}`}>
+              {vehicleData.battery !== null ? `${vehicleData.battery}V` : '---'}
+            </span>
           </div>
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
-            <FuelIcon size={14} className="text-slate-500"/><span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.fuel, 'FUEL')}`}>{vehicleData.fuel}%</span>
+            <FuelIcon size={14} className="text-slate-500"/>
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.fuel, 'FUEL')}`}>
+              {vehicleData.fuel !== null ? `${vehicleData.fuel}%` : '---'}
+            </span>
           </div>
         </div>
 
@@ -183,7 +268,7 @@ const DriverDashboard = () => {
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex items-center justify-center">
             {isMilActive(vehicleData.mil) ? (
               <div className={`flex items-center gap-2 ${getStatusColor(vehicleData.mil, 'MIL')}`}>
-                <AlertOctagon size={24} /><span className="text-[10px] font-black uppercase">Check Engine</span>
+                <AlertOctagon size={24} /><span className="text-[10px] font-black uppercase tracking-tighter">Check Engine</span>
               </div>
             ) : (
               <div className="text-green-500 flex items-center gap-2">
@@ -205,7 +290,7 @@ const DriverDashboard = () => {
             {vehicleData.activity === 'Active' ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
             {vehicleData.activity === 'Active' ? 'End Trip' : 'Start Trip'}
           </button>
-          <button onClick={() => { setShowSosOverlay(true); setSosStep('MENU'); }} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg active:scale-95">
+          <button onClick={() => setShowSosOverlay(true)} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg active:scale-95">
             <AlertTriangle size={12} /> SOS Emergency
           </button>
         </div>
@@ -213,42 +298,25 @@ const DriverDashboard = () => {
 
       {/* SOS OVERLAY */}
       {showSosOverlay && (
-        <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm p-3 flex flex-col">
-          {sosStep === 'MENU' && (
-            <>
-              <div className="flex justify-between items-center mb-2">
-                <h2 className="text-xl font-black text-white uppercase tracking-tighter">Emergency Alert</h2>
-                <button onClick={() => setShowSosOverlay(false)} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button>
-              </div>
-              <div className="flex-1 grid grid-cols-2 gap-2">
-                <button onClick={() => { setSelectedSosType({reason: 'Accident'}); setSosStep('CONFIRM'); }} className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600">
-                  <CarFront size={32} className="text-red-500" /><span className="text-[12px] font-black uppercase text-red-500">Accident</span>
-                </button>
-                <button onClick={() => { setSelectedSosType({reason: 'Medical'}); setSosStep('CONFIRM'); }} className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600">
-                  <HeartPulse size={32} className="text-rose-500" /><span className="text-[12px] font-black uppercase text-rose-500">Medical</span>
-                </button>
-                <button onClick={() => { setSelectedSosType({reason: 'Breakdown'}); setSosStep('CONFIRM'); }} className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600">
-                  <Wrench size={32} className="text-amber-500" /><span className="text-[12px] font-black uppercase text-amber-500">Breakdown</span>
-                </button>
-                <button onClick={() => { setSelectedSosType({reason: 'Threat'}); setSosStep('CONFIRM'); }} className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500">
-                  <ShieldAlert size={32} className="text-slate-300" /><span className="text-[12px] font-black uppercase text-slate-300">Security</span>
-                </button>
-              </div>
-            </>
-          )}
-          {sosStep === 'CONFIRM' && (
-            <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
-              <AlertTriangle size={60} className="text-red-500 animate-bounce" />
-              <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{selectedSosType?.reason}</h2>
-              <button onClick={confirmSendSos} className="w-full py-6 bg-red-600 rounded-xl text-2xl font-black uppercase active:scale-95">Confirm Alert</button>
-              <button onClick={() => setSosStep('MENU')} className="w-full py-3 bg-slate-800 rounded-xl text-xs font-bold uppercase">Go Back</button>
-            </div>
-          )}
-          {(sosStep === 'SENDING' || sosStep === 'SUCCESS') && (
-            <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center">
-              {sosStep === 'SENDING' ? <><Loader2 size={40} className="text-white animate-spin mb-2" /><h2 className="text-xl font-black text-white uppercase">Dispatching...</h2></> : <><CheckCircle size={80} className="text-green-500 mb-2" /><h2 className="text-xl font-black text-green-500 uppercase">Alert Received</h2></>}
-            </div>
-          )}
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm p-3 flex flex-col">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xl font-black text-white uppercase tracking-tighter italic">Emergency Alert</h2>
+            <button onClick={() => setShowSosOverlay(false)} className="p-2 bg-slate-800 rounded-full text-white"><X size={20} /></button>
+          </div>
+          <div className="flex-1 grid grid-cols-2 gap-2">
+              <button onClick={() => { setSelectedSosType({reason: 'Accident'}); setSosStep('CONFIRM'); }} className="bg-red-600/20 border border-red-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-red-600">
+                <CarFront size={32} className="text-red-500" /><span className="text-[12px] font-black uppercase text-red-500">Accident</span>
+              </button>
+              <button onClick={() => { setSelectedSosType({reason: 'Medical'}); setSosStep('CONFIRM'); }} className="bg-rose-600/20 border border-rose-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-rose-600">
+                <HeartPulse size={32} className="text-rose-500" /><span className="text-[12px] font-black uppercase text-rose-500">Medical</span>
+              </button>
+              <button onClick={() => { setSelectedSosType({reason: 'Breakdown'}); setSosStep('CONFIRM'); }} className="bg-amber-600/20 border border-amber-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-amber-600">
+                <Wrench size={32} className="text-amber-500" /><span className="text-[12px] font-black uppercase text-amber-500">Breakdown</span>
+              </button>
+              <button onClick={() => { setSelectedSosType({reason: 'Threat'}); setSosStep('CONFIRM'); }} className="bg-slate-700/40 border border-slate-500 rounded-xl flex flex-col items-center justify-center gap-1 active:bg-slate-500">
+                <ShieldAlert size={32} className="text-slate-300" /><span className="text-[12px] font-black uppercase text-slate-300">Security</span>
+              </button>
+          </div>
         </div>
       )}
     </div>

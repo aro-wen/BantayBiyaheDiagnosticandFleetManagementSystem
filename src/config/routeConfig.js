@@ -1,9 +1,12 @@
 import { supabase } from '../supabaseClient';
 import pandacanRouteData from '../data/pandacanRoute.json';
 
-// Split correctly: 0-33 (Forward), 33-end (Return)
 export const ROUTE_FORWARD = pandacanRouteData.slice(0, 33); 
 export const ROUTE_RETURN = pandacanRouteData.slice(33);
+
+// --- CONFIGURATION ---
+const DEVIATION_THRESHOLD_KM = 0.5; // 500 meters allowed before "Out of Route"
+const BOUNDARY_MAX_KM = 2.0;       // 2km allowed before "Out of Boundary"
 
 /**
  * Standard Haversine formula for distance calculation
@@ -20,48 +23,65 @@ export const calculateDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 /**
- * Synchronizes the human-readable address based STRICTLY on database direction
+ * Synchronizes the human-readable address and checks for route deviation
  */
 export const syncVehicleAddress = async (vehicleId) => {
   if (!vehicleId) return;
 
-  // 1. Fetch latest state from Supabase
   const { data: vehicle, error } = await supabase
     .from('vehicles')
-    .select('lat, lng, trip_direction')
+    .select('lat, lng, trip_direction, activity')
     .eq('id', vehicleId)
     .single();
 
   if (error || !vehicle || !vehicle.lat) return;
 
-  // 2. Lock the search to the current database direction
   const activeRoute = vehicle.trip_direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
 
-  // 3. Find closest waypoint only within the active bound
+  // 1. Calculate distances to all points in the active route
   const pointsWithDistance = activeRoute.map((stop, index) => ({
     ...stop,
     index,
     dist: calculateDistance(vehicle.lat, vehicle.lng, stop.lat, stop.lng)
   }));
 
-  const closest = pointsWithDistance.sort((a, b) => a.dist - b.dist)[0];
+  // Sort by closest distance
+  const sortedPoints = pointsWithDistance.sort((a, b) => a.dist - b.dist);
+  const closest = sortedPoints[0];
   
   let currentAddress = closest.name;
-  let nextIndex = closest.index + 1;
+  let nextAddress = "";
+  let isDeviated = false;
 
-  // 4. Determine next stop name
-  let nextAddress = nextIndex < activeRoute.length 
-    ? activeRoute[nextIndex].name 
-    : (vehicle.trip_direction === 'Return' ? "Pandacan Cooperative" : "Leon Guinto Terminal");
+  // 2. DEVIATION LOGIC
+  // If the closest point is further than the threshold, the vehicle is off-track
+  if (closest.dist > BOUNDARY_MAX_KM) {
+    currentAddress = "OUT OF BOUNDARY";
+    nextAddress = "RE-ENTRY REQUIRED";
+    isDeviated = true;
+  } else if (closest.dist > DEVIATION_THRESHOLD_KM) {
+    currentAddress = "OUT OF ROUTE";
+    nextAddress = `NEAREST: ${closest.name}`;
+    isDeviated = true;
+  } else {
+    // 3. Normal Routing
+    let nextIndex = closest.index + 1;
+    nextAddress = nextIndex < activeRoute.length 
+      ? activeRoute[nextIndex].name 
+      : (vehicle.trip_direction === 'Return' ? "Pandacan Cooperative" : "Leon Guinto Terminal");
+  }
 
-  // 5. Update Supabase (Trigger handles trip_direction)
+  // 4. Update Supabase
+  // We update current_address and potentially a 'status' or 'is_deviated' flag if you have one
   await supabase
     .from('vehicles')
     .update({ 
       current_address: currentAddress,
-      next_address: nextAddress 
+      next_address: nextAddress,
+      // If you have a status column for tracking health + route
+      status: (isDeviated && vehicle.activity === 'Active') ? 'Warning' : vehicle.status 
     })
     .eq('id', vehicleId);
     
-  return { currentAddress, nextAddress, direction: vehicle.trip_direction };
+  return { currentAddress, nextAddress, direction: vehicle.trip_direction, isDeviated };
 };

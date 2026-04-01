@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
-  Activity, 
+  Bus, 
   AlertTriangle, 
   History, 
   ClipboardList, 
@@ -47,7 +47,7 @@ const TechnicianLayout = () => {
 
         <nav className="flex-1 px-3 py-6 space-y-1">
           <NavItem to="/technician/jobs" icon={<Wrench size={20} />} label="Assigned Jobs" />
-          <NavItem to="/technician/health" icon={<Activity size={20} />} label="Vehicle Health" />
+          <NavItem to="/technician/health" icon={<Bus size={20} />} label="Vehicles" />
           <NavItem to="/technician/technicianmileage" icon={<Gauge size={20} />} label="Mileage Checker" />
           {/* <NavItem to="/technician/dtcs" icon={<AlertTriangle size={20} />} label="DTCs" /> */}
           <NavItem to="/technician/history" icon={<History size={20} />} label="Maintenance History" />
