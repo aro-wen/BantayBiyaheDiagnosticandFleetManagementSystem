@@ -15,7 +15,7 @@ const DriverDashboard = () => {
 
   // --- 1. DATA & HOOKS ---
   const { vehicleData, isLoading, setVehicleData } = useVehicleData(VEHICLE_ID);
-  const [minLoaderActive, setMinLoaderActive] = useState(true); // 5-second timer state
+  const [minLoaderActive, setMinLoaderActive] = useState(true); // 10-second timer state
   const [isIgnited, setIsIgnited] = useState(false); 
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -29,7 +29,7 @@ const DriverDashboard = () => {
     // Global Clock
     const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000);
     
-    // Minimum 5-second Loading Timer
+    // Minimum Loading Timer (For visual effect on cold start)
     const loaderTimer = setTimeout(() => {
       setMinLoaderActive(false);
     }, 10000);
@@ -40,26 +40,23 @@ const DriverDashboard = () => {
     };
   }, []);
 
-    // --- 3. ROUTE LOGIC (WITH OUT-OF-BOUND DISTANCE HIDING) ---
+  // --- 3. ROUTE LOGIC ---
   const routeInfo = useMemo(() => {
-    const currentAddr = vehicleData.current_address || "SYNCING...";
-    const nextAddr = vehicleData.next_address || "READY";
+    const currentAddr = vehicleData?.current_address || "SYNCING...";
+    const nextAddr = vehicleData?.next_address || "READY";
     
-    // Logical Flags
     const isOutOfBounds = currentAddr === "OUT OF BOUNDARY";
     const isDeviated = currentAddr === "OUT OF ROUTE" || isOutOfBounds;
 
-    // Calculate distance only if we are within valid route boundaries
     let distDisplay = "0.00";
     
     if (!isOutOfBounds) {
-      const direction = vehicleData.trip_direction || 'Forward';
+      const direction = vehicleData?.trip_direction || 'Forward';
       const activeRoute = direction === 'Return' ? ROUTE_RETURN : ROUTE_FORWARD;
       
-      // Find the coordinate of the "Next Stop" to show distance
       const nextStop = activeRoute.find(stop => stop.name === nextAddr) || activeRoute[0];
 
-      if (vehicleData.lat && nextStop) {
+      if (vehicleData?.lat && nextStop) {
         distDisplay = calculateDistance(
           vehicleData.lat, 
           vehicleData.lng, 
@@ -68,7 +65,6 @@ const DriverDashboard = () => {
         ).toFixed(2);
       }
     } else {
-      // When Out of Bounds, we force the distance to a null state or "---"
       distDisplay = "---";
     }
 
@@ -76,13 +72,17 @@ const DriverDashboard = () => {
       current: currentAddr,
       next: nextAddr,
       distance: distDisplay,
-      direction: vehicleData.trip_direction || 'Forward',
+      direction: vehicleData?.trip_direction || 'Forward',
       isDeviated: isDeviated,
       isOutOfBounds: isOutOfBounds
     };
-  }, [vehicleData.current_address, vehicleData.next_address, vehicleData.lat, vehicleData.lng]);
+  }, [vehicleData?.current_address, vehicleData?.next_address, vehicleData?.lat, vehicleData?.lng]);
 
-  // --- 4. ACTIONS ---
+  // --- 4. OPERATIONAL STATUS LOGIC ---
+  // Determine if the vehicle is ready to drive to handle all UI rendering uniformly
+  const isOperational = vehicleData?.activity === 'System Operational' || vehicleData?.activity === 'Active';
+
+  // --- 5. ACTIONS ---
   const handleIgnition = async () => {
     setIsIgnited(true); 
     try {
@@ -100,8 +100,8 @@ const DriverDashboard = () => {
   };
 
   const toggleTrip = async () => {
-    if (vehicleData.activity === 'Under Maintenance') return; 
-    const nextActivity = vehicleData.activity === 'Active' ? 'Inactive' : 'Active';
+    if (vehicleData?.activity === 'Under Maintenance') return; 
+    const nextActivity = isOperational ? 'Inactive' : 'Active';
     
     try {
       const { error } = await supabase
@@ -133,12 +133,12 @@ const DriverDashboard = () => {
     }
   };
 
-  // --- 5. GAUGE COMPONENT ---
+  // --- 6. GAUGE COMPONENT ---
   const RPMGauge = ({ rpm }) => {
     const T = VEHICLE_THRESHOLDS.RPM;
-    const percentage = Math.min(rpm / (T.MAX + 1000), 1);
+    const percentage = Math.min((rpm || 0) / (T.MAX + 1000), 1);
     const rotation = -100 + (percentage * 200); 
-    const isWarning = rpm >= T.WARNING;
+    const isWarning = (rpm || 0) >= T.WARNING;
 
     return (
       <div className="relative w-full h-[12vh] min-h-[55px] flex justify-center items-end overflow-hidden pt-1">
@@ -154,8 +154,11 @@ const DriverDashboard = () => {
     );
   };
 
-  // --- 6. INITIALIZING / BOOT SCREEN ---
-  if (isLoading || minLoaderActive || (isIgnited && vehicleData.activity !== 'System Operational' && vehicleData.activity !== 'Active')) {
+  // --- 7. INITIALIZING / BOOT SCREEN ---
+  // The magic fix: If the vehicle is already operational, bypass the minLoaderActive timer!
+  const showLoadingScreen = isLoading || (!isOperational && minLoaderActive) || (isIgnited && !isOperational);
+
+  if (showLoadingScreen) {
     return (
       <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-6 select-none font-sans">
         <div className="relative mb-8">
@@ -171,11 +174,11 @@ const DriverDashboard = () => {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">Initializing Systems...</p>
           </div>
         </div>
-        <div className="absolute bottom-10 left-10 text-[8px] font-mono text-slate-600 space-y-1 hidden md:block">
-          <p>{`> CONNECTING TO NODE_01`}</p>
-          <p>{`> SYNCING TELEMETRY ${VEHICLE_ID}`}</p>
-          <p className={!isLoading ? "text-blue-500" : ""}>{isLoading ? "> FETCHING..." : "> SYNC COMPLETE"}</p>
-          <p className={!minLoaderActive ? "text-green-500" : ""}>{minLoaderActive ? "> LOADING KERNEL..." : "> KERNEL READY"}</p>
+        <div className="absolute bottom-10 left-10 text-[8px] font-mono space-y-1 hidden md:block">
+          <p className="text-slate-600">{`> CONNECTING TO NODE_01`}</p>
+          <p className="text-slate-600">{`> SYNCING TELEMETRY ${VEHICLE_ID}`}</p>
+          <p className={!isLoading ? "text-blue-500" : "text-slate-600"}>{isLoading ? "> FETCHING..." : "> SYNC COMPLETE"}</p>
+          <p className={isOperational ? "text-green-500" : "text-slate-600"}>{isOperational ? "> SYSTEM OPERATIONAL" : "> WAITING FOR COMMAND"}</p>
         </div>
       </div>
     );
@@ -185,7 +188,7 @@ const DriverDashboard = () => {
     <div className="h-screen w-screen bg-black text-white font-sans overflow-hidden flex flex-col p-[1vh] select-none relative">
       
       {/* IGNITION OVERLAY */}
-      {!isIgnited && vehicleData.activity === 'Inactive' && (
+      {!isOperational && vehicleData?.activity === 'Inactive' && (
         <div className="absolute inset-0 z-[60] bg-slate-950/40 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-700">
           <button 
             onClick={handleIgnition}
@@ -203,22 +206,22 @@ const DriverDashboard = () => {
       )}
 
       {/* MAIN DASHBOARD */}
-      <div className={`flex-1 rounded-xl border border-slate-800/40 flex flex-col gap-1 p-1 shadow-2xl transition-all duration-1000 ${
-        vehicleData.activity !== 'Active' ? 'bg-slate-950/30 grayscale-[0.8] brightness-50' : 'bg-slate-900/30 grayscale-0 brightness-100'
+      <div className={`flex-1 rounded-xl border flex flex-col gap-1 p-1 shadow-2xl transition-all duration-1000 ${
+        !isOperational ? 'bg-slate-950/30 border-slate-800/40 grayscale-[0.8] brightness-50' : 'bg-slate-900/30 border-slate-700 grayscale-0 brightness-100'
       }`}>
         
         {/* ROW 1: SPEED & RPM */}
         <div className="flex-[2] grid grid-cols-2 gap-1">
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex flex-col items-center justify-center p-1 relative overflow-hidden">
-            <h1 className={`text-[clamp(3rem,14vh,7.5rem)] font-black leading-none tabular-nums tracking-tighter ${vehicleData.speed >= VEHICLE_THRESHOLDS.SPEED.WARNING ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-              {Math.round(vehicleData.speed)}
+            <h1 className={`text-[clamp(3rem,14vh,7.5rem)] font-black leading-none tabular-nums tracking-tighter ${vehicleData?.speed >= VEHICLE_THRESHOLDS.SPEED.WARNING ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+              {Math.round(vehicleData?.speed || 0)}
             </h1>
             <span className="text-cyan-400 text-[9px] font-bold tracking-widest uppercase -mt-1">KM/H</span>
           </div>
 
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex flex-col items-center justify-center pt-2">
-            <RPMGauge rpm={vehicleData.rpm} />
-            <div className={`text-[clamp(1.2rem,4vh,2.2rem)] font-black mt-1 tabular-nums ${vehicleData.rpm >= VEHICLE_THRESHOLDS.RPM.WARNING ? 'text-red-500' : 'text-white'}`}>{vehicleData.rpm}</div>
+            <RPMGauge rpm={vehicleData?.rpm} />
+            <div className={`text-[clamp(1.2rem,4vh,2.2rem)] font-black mt-1 tabular-nums ${vehicleData?.rpm >= VEHICLE_THRESHOLDS.RPM.WARNING ? 'text-red-500' : 'text-white'}`}>{vehicleData?.rpm || 0}</div>
             <span className="text-slate-500 text-[8px] font-bold uppercase tracking-widest">RPM</span>
           </div>
         </div>
@@ -227,20 +230,20 @@ const DriverDashboard = () => {
         <div className="flex-[0.5] grid grid-cols-3 gap-1">
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
             <Thermometer size={14} className="text-slate-500"/>
-            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.temp, 'TEMP')}`}>
-              {vehicleData.temp !== null ? `${vehicleData.temp}°` : '---'}
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData?.temp, 'TEMP')}`}>
+              {vehicleData?.temp !== null && vehicleData?.temp !== undefined ? `${vehicleData.temp}°` : '---'}
             </span>
           </div>
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
             <Battery size={14} className="text-slate-500"/>
-            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.battery, 'BATTERY')}`}>
-              {vehicleData.battery !== null ? `${vehicleData.battery}V` : '---'}
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData?.battery, 'BATTERY')}`}>
+              {vehicleData?.battery !== null && vehicleData?.battery !== undefined ? `${vehicleData.battery}V` : '---'}
             </span>
           </div>
           <div className="bg-slate-900/50 rounded-lg flex items-center justify-between px-3 border border-white/5">
             <FuelIcon size={14} className="text-slate-500"/>
-            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData.fuel, 'FUEL')}`}>
-              {vehicleData.fuel !== null ? `${vehicleData.fuel}%` : '---'}
+            <span className={`text-xs font-black tabular-nums ${getStatusColor(vehicleData?.fuel, 'FUEL')}`}>
+              {vehicleData?.fuel !== null && vehicleData?.fuel !== undefined ? `${vehicleData.fuel}%` : '---'}
             </span>
           </div>
         </div>
@@ -266,8 +269,8 @@ const DriverDashboard = () => {
             </div>
           </div>
           <div className="bg-slate-950/60 rounded-lg border border-slate-800/50 flex items-center justify-center">
-            {isMilActive(vehicleData.mil) ? (
-              <div className={`flex items-center gap-2 ${getStatusColor(vehicleData.mil, 'MIL')}`}>
+            {isMilActive(vehicleData?.mil) ? (
+              <div className={`flex items-center gap-2 ${getStatusColor(vehicleData?.mil, 'MIL')}`}>
                 <AlertOctagon size={24} /><span className="text-[10px] font-black uppercase tracking-tighter">Check Engine</span>
               </div>
             ) : (
@@ -281,14 +284,14 @@ const DriverDashboard = () => {
         {/* ROW 4: BUTTONS */}
         <div className="flex-[0.6] grid grid-cols-2 gap-1">
           <button 
-            disabled={vehicleData.activity === 'Under Maintenance'}
+            disabled={vehicleData?.activity === 'Under Maintenance'}
             onClick={toggleTrip} 
             className={`rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] border transition-all active:scale-95 
-            ${vehicleData.activity === 'Under Maintenance' ? 'opacity-40 bg-slate-900 cursor-not-allowed' : 
-              vehicleData.activity === 'Active' ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-600/20 text-green-500 border-green-500/50'}`}
+            ${vehicleData?.activity === 'Under Maintenance' ? 'opacity-40 bg-slate-900 cursor-not-allowed' : 
+              isOperational ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-green-600/20 text-green-500 border-green-500/50'}`}
           >
-            {vehicleData.activity === 'Active' ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
-            {vehicleData.activity === 'Active' ? 'End Trip' : 'Start Trip'}
+            {isOperational ? <Square size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+            {isOperational ? 'End Trip' : 'Start Trip'}
           </button>
           <button onClick={() => setShowSosOverlay(true)} className="bg-red-600 rounded-lg flex items-center justify-center gap-2 font-black uppercase text-[10px] shadow-lg active:scale-95">
             <AlertTriangle size={12} /> SOS Emergency
