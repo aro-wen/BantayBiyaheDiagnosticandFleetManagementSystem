@@ -155,7 +155,7 @@ const DriverDashboard = () => {
   };
 
   // --- 6. INITIALIZING / BOOT SCREEN ---
-  if (isLoading || minLoaderActive || (isIgnited && vehicleData.activity !== 'Active')) {
+  if (isLoading || minLoaderActive || (isIgnited && vehicleData.activity !== 'System Operational' && vehicleData.activity !== 'Active')) {
     return (
       <div className="h-screen w-screen bg-black flex flex-col items-center justify-center p-6 select-none font-sans">
         <div className="relative mb-8">
