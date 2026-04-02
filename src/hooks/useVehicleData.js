@@ -14,7 +14,7 @@ export const useVehicleData = (vehicleId) => {
   // --- FEATURE: NULLIFY TELEMETRY WHEN INACTIVE ---
   // This helper ensures the UI stays "dark" if the trip hasn't started.
   const applyInactivityFilter = (data) => {
-    if (data.activity !== 'System Operational') {
+    if (data.activity !== 'Active') {
       return {
         ...data,
         speed: 0,
