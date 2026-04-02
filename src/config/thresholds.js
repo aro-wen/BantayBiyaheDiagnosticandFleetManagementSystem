@@ -45,6 +45,16 @@ export const getStatusColor = (value, type) => {
   const T = VEHICLE_THRESHOLDS;
 
   switch (type) {
+    case 'RPM':
+      if (value >= T.RPM.MAX) return 'text-red-500 animate-pulse font-bold';
+      if (value >= T.RPM.WARNING) return 'text-orange-500 font-bold';
+      return 'text-cyan-400';
+
+    case 'SPEED':
+      if (value >= T.SPEED.MAX) return 'text-red-500 animate-pulse font-bold';
+      if (value >= T.SPEED.WARNING) return 'text-orange-500 font-bold';
+      return 'text-cyan-400';
+
     case 'TEMP':
       if (value >= T.TEMP.CRITICAL) return 'text-red-500 animate-pulse font-bold';
       if (value >= T.TEMP.WARNING) return 'text-orange-500';

@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { 
-  Search, Bus, MapPin, Gauge, Thermometer, Battery, Info, 
-  AlertOctagon, CheckCircle, AlertTriangle, Inbox, Activity, Loader2 
+  Search, Bus, MapPin, Gauge, CheckCircle, AlertOctagon, Activity, Loader2 
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 import StatusBadge from '../../components/StatusBadge';
-import VehicleDetailModal from '../../components/VehicleDetailModal'; 
+import VehicleDetailModal from '../../components/VehicleDetailModal_Dispatcher'; 
 import { getStatusColor } from '../../config/thresholds'; 
 import { useFleetMonitoring } from '../../hooks/useFleetMonitoring';
+// Import your provided hook
+import { useVehicleData } from '../../hooks/useVehicleData'; 
 
 // --- FIXED MAP RENDERING HELPER ---
 function MapResizer() {
@@ -202,12 +203,13 @@ const DispatcherVehicles = () => {
         </div>
       </div>
 
-      {/* MONITORING GRID & EMPTY STATE */}
+      {/* MONITORING GRID */}
       <div className="mt-8 pb-10 min-h-[300px]">
         {filteredVehicles && filteredVehicles.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredVehicles.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} onClick={() => openModal(vehicle)} />
+            {filteredVehicles.map((v) => (
+              /* Pass individual ID to each card to use the hook */
+              <VehicleCard key={v.id} vehicleId={v.id} initialData={v} onClick={() => openModal(v)} />
             ))}
           </div>
         ) : (
@@ -229,10 +231,73 @@ const DispatcherVehicles = () => {
   );
 };
 
+// --- UPDATED VEHICLE CARD COMPONENT ---
+
+const VehicleCard = ({ vehicleId, initialData, onClick }) => {
+  // Use the useVehicleData hook for each individual card
+  const { vehicleData } = useVehicleData(vehicleId);
+
+  // Determine if the vehicle is active
+  const isVehicleActive = vehicleData.activity === 'Active';
+
+  return (
+    <div onClick={onClick} className="bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer group relative overflow-hidden">
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all shadow-inner ${
+            isVehicleActive ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-slate-50 text-slate-400'
+          }`}>
+            <Bus size={22} />
+          </div>
+          <div className="text-left">
+            <h3 className="font-black text-slate-800 uppercase tracking-tight leading-none mb-1 italic">{vehicleData.id || initialData.id}</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{vehicleData.plate || initialData.plate}</p>
+          </div>
+        </div>
+        
+        <div className="flex flex-col items-end gap-1">
+          <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase border shadow-sm 
+            ${vehicleData.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' :
+              vehicleData.activity === 'Under Maintenance' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+              'bg-slate-100 text-slate-600 border-slate-200'}`}>
+            {vehicleData.activity || 'Inactive'}
+          </span>
+          <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase border shadow-sm
+            ${vehicleData.status === 'Critical' ? 'bg-red-500 text-white border-red-600 animate-pulse' :
+              vehicleData.status === 'Warning' ? 'bg-amber-500 text-white border-amber-600' :
+              'bg-green-500 text-white border-green-600'}`}>
+            {vehicleData.status || 'Normal'}
+          </span>
+        </div>
+      </div>
+      
+      {/* Telemetry Grid - These values are filtered by useVehicleData */}
+      <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-50 bg-slate-50/30 rounded-2xl mb-4">
+        <TelemetryItem label="Speed" val={isVehicleActive ? (vehicleData.speed || 0) : "--"} unit="KMH" color={getStatusColor(vehicleData.speed, 'SPEED')} icon={<Gauge size={12}/>} />
+        <TelemetryItem label="RPM" val={isVehicleActive ? (vehicleData.rpm || 0) : "--"} color={getStatusColor(vehicleData.rpm, 'RPM')} icon={<Gauge size={12}/>} />
+        <TelemetryItem label="MIL" val={isVehicleActive ? (vehicleData.mil || 'OFF') : "--"} color={getStatusColor(vehicleData.mil, 'MIL')} icon={<CheckCircle size={12}/>} />
+      </div>
+
+      <div className="space-y-3">
+        <AddressItem 
+            label="Live Position" 
+            address={isVehicleActive ? vehicleData.current_address : "Position Unavailable (Offline)"} 
+            dotColor={isVehicleActive ? "bg-cyan-500" : "bg-slate-300"} 
+        />
+        <AddressItem 
+            label="Approaching" 
+            address={isVehicleActive ? vehicleData.next_address : "Route Data Paused"} 
+            dotColor={isVehicleActive ? "bg-amber-500" : "bg-slate-300"} 
+        />
+      </div>
+    </div>
+  );
+};
+
 // --- HELPER SUB-COMPONENTS ---
 
 const EmptyFleetState = ({ filter, searchTerm, onReset }) => (
-  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-slate-100 border-dashed animate-in fade-in zoom-in duration-500">
+  <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[32px] border-2 border-slate-100 border-dashed animate-in fade-in zoom-in duration-500 w-full col-span-full">
     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
       <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-200">
         <Bus size={28} />
@@ -259,7 +324,7 @@ const EmptyFleetState = ({ filter, searchTerm, onReset }) => (
 
 const SummaryCard = ({ label, value, icon, color }) => (
   <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm flex items-center justify-between">
-    <div>
+    <div className="text-left">
       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</p>
       <p className={`text-2xl font-black ${color}`}>{value}</p>
     </div>
@@ -270,61 +335,19 @@ const SummaryCard = ({ label, value, icon, color }) => (
 const TelemetryItem = ({ label, val, unit, color, icon }) => (
   <div className="text-center">
     <div className="flex justify-center text-slate-300 mb-0.5">{icon}</div>
-    <div className={`text-sm font-black font-mono leading-none ${color}`}>{val || 0}<span className="text-[10px] ml-0.5 uppercase">{unit}</span></div>
+    <div className={`text-sm font-black font-mono leading-none ${color}`}>
+        {val ?? 0}<span className="text-[10px] ml-0.5 uppercase">{unit}</span>
+    </div>
     <div className="text-[8px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">{label}</div>
   </div>
 );
 
 const AddressItem = ({ label, address, dotColor }) => (
-  <div className="flex items-start gap-2.5">
-    <div className={`mt-1.5 h-1.5 w-1.5 rounded-full ${dotColor} shadow-sm`} />
+  <div className="flex items-start gap-2.5 text-left">
+    <div className={`mt-1.5 h-1.5 w-1.5 rounded-full ${dotColor} shadow-sm shrink-0`} />
     <div className="flex-1 min-w-0">
       <p className="text-[9px] font-bold text-slate-400 uppercase leading-none mb-1 tracking-tight">{label}</p>
       <p className="text-[11px] font-semibold text-slate-600 truncate uppercase tracking-tight">{address || 'STATIONARY'}</p>
-    </div>
-  </div>
-);
-
-const VehicleCard = ({ vehicle, onClick }) => (
-  <div onClick={onClick} className="bg-white p-5 rounded-[28px] border border-slate-200 shadow-sm hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer group relative overflow-hidden">
-    <div className="flex justify-between items-start mb-4">
-      <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all shadow-inner ${
-          vehicle.activity?.toLowerCase() === 'active' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-slate-50 text-slate-400'
-        }`}>
-          <Bus size={22} />
-        </div>
-        <div>
-          <h3 className="font-black text-slate-800 uppercase tracking-tight leading-none mb-1 italic">{vehicle.id}</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{vehicle.plate}</p>
-        </div>
-      </div>
-      
-      <div className="flex flex-col items-end gap-1">
-        <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase border shadow-sm 
-          ${vehicle.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' :
-            vehicle.activity === 'Under Maintenance' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-            'bg-slate-100 text-slate-600 border-slate-200'}`}>
-          {vehicle.activity || 'Inactive'}
-        </span>
-        <span className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase border shadow-sm
-          ${vehicle.status === 'Critical' ? 'bg-red-500 text-white border-red-600 animate-pulse' :
-            vehicle.status === 'Warning' ? 'bg-amber-500 text-white border-amber-600' :
-            'bg-green-500 text-white border-green-600'}`}>
-          {vehicle.status || 'Normal'}
-        </span>
-      </div>
-    </div>
-    
-    <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-50 bg-slate-50/30 rounded-2xl mb-4">
-      <TelemetryItem label="Speed" val={vehicle.speed} unit="KMH" color="text-slate-700" icon={<Gauge size={12}/>} />
-      <TelemetryItem label="Temp" val={vehicle.temp} unit="°" color={getStatusColor(vehicle.temp, 'TEMP')} icon={<Thermometer size={12}/>} />
-      <TelemetryItem label="Batt" val={vehicle.battery} unit="V" color={getStatusColor(vehicle.battery, 'BATTERY')} icon={<Battery size={12}/>} />
-    </div>
-
-    <div className="space-y-3">
-      <AddressItem label="Live Position" address={vehicle.current_address} dotColor="bg-cyan-500" />
-      <AddressItem label="Approaching" address={vehicle.next_address} dotColor="bg-amber-500" />
     </div>
   </div>
 );

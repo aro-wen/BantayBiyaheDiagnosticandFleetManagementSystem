@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useJobDetails } from '../../hooks/useJobDetails';
 import StatusBadge from '../../components/StatusBadge';
+import { getStatusColor } from '../../config/thresholds';
 
 const JobDetails = () => {
   const { id } = useParams();
@@ -161,7 +162,7 @@ const JobDetails = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <TelemetryTile label="Coolant" value={`${vehicle?.temp || 0}°C`} />
-                <TelemetryTile label="RPM" value={vehicle?.rpm || 0} />
+                <TelemetryTile label="RPM" value={vehicle?.rpm || 0} color={getStatusColor(vehicle?.rpm, 'RPM')} />
                 <TelemetryTile label="Battery" value={`${vehicle?.battery || 0}V`} />
                 <TelemetryTile label="Fuel Level" value={`${vehicle?.fuel || 0}%`} />
               </div>
@@ -203,10 +204,10 @@ const DataItem = ({ label, value, icon }) => (
   </div>
 );
 
-const TelemetryTile = ({ label, value }) => (
+const TelemetryTile = ({ label, value, color = 'text-slate-700' }) => (
   <div className="p-3 bg-slate-50 rounded-xl text-center border border-slate-100">
     <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">{label}</div>
-    <div className="font-bold text-slate-700 text-lg">{value}</div>
+    <div className={`font-bold text-lg ${color}`}>{value}</div>
   </div>
 );
 

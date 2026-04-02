@@ -54,17 +54,6 @@ const DriverDashboard = () => {
     return () => clearInterval(clock);
   }, []);
 
-  // --- HELPERS FOR LOCAL COLOR LOGIC (SPEED/RPM) ---
-  const getSpeedColor = (speed) => {
-    if (speed >= VEHICLE_THRESHOLDS.SPEED.WARNING) return 'text-red-500 animate-pulse font-bold';
-    return 'text-white';
-  };
-
-  const getRpmColor = (rpm) => {
-    if (rpm >= VEHICLE_THRESHOLDS.RPM.WARNING) return 'text-red-500 font-bold';
-    return 'text-cyan-400';
-  };
-
   const routeInfo = useMemo(() => {
     const currentAddr = vehicleData?.current_address || "LOCATING...";
     const nextAddr = vehicleData?.next_address || "READY";
@@ -100,13 +89,13 @@ const DriverDashboard = () => {
             icon={<Gauge size={18}/>} 
             value={isDeviceActive ? Math.round(vehicleData?.speed || 0) : "--"} 
             unit="KM/H" 
-            color={isDeviceActive ? getSpeedColor(vehicleData?.speed) : "text-slate-600"} 
+          color={isDeviceActive ? getStatusColor(vehicleData?.speed, 'SPEED') : "text-slate-600"} 
         />
         <MetricCard 
             icon={<Activity size={18}/>} 
             value={isDeviceActive ? (vehicleData?.rpm || 0) : "--"} 
             unit="RPM" 
-            color={isDeviceActive ? getRpmColor(vehicleData?.rpm) : "text-slate-600"} 
+          color={isDeviceActive ? getStatusColor(vehicleData?.rpm, 'RPM') : "text-slate-600"} 
         />
         <MetricCard 
             icon={<Thermometer size={18}/>} 

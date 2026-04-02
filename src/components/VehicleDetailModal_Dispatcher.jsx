@@ -1,31 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, Activity, Gauge, Thermometer, Battery, Droplet, 
   AlertTriangle, CheckCircle, MapPin, Power, AlertOctagon, Loader2,
-  ChevronRight
+  ChevronRight, Wrench
 } from 'lucide-react';
 import { useJobs } from '../contexts/JobContext'; 
 import { getStatusColor, isMilActive } from '../config/thresholds'; 
 import { useVehicleDTC } from '../hooks/useVehicleDTC';
+import CreateJobModal from './CreateJobModal'; // Import your job modal
 
 const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const { vehicles } = useJobs(); 
   const [activeTab, setActiveTab] = useState('diagnostics');
+  const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
+  const [selectedFault, setSelectedFault] = useState(null);
+  
+  // Ref for auto-scrolling to DTC section
+  const dtcListRef = useRef(null);
 
-  // Fetch live translated DTCs for this specific vehicle
   const { translatedDTCs, hasFaults, isLoading: dtcLoading } = useVehicleDTC(vehicle?.id);
 
   if (!isOpen || !vehicle) return null;
 
   const liveVehicle = vehicles.find(v => v.id === vehicle.id) || vehicle;
-
-  // Logic to determine if systems should be displayed as "Live"
   const isDeviceActive = liveVehicle.activity === 'Active' || liveVehicle.activity === 'System Operational';
-  
-  // Filter for codes that are currently marked as Active in the DB
   const activeFaults = translatedDTCs.filter(f => f.status === 'Active');
   const showLiveFaults = activeFaults.length > 0 && isDeviceActive;
   const milActive = isMilActive(liveVehicle.mil) && isDeviceActive;
+
+  // Function to open the CreateJobModal with pre-filled DTC data
+  const handleInitiateTask = (fault) => {
+    setSelectedFault({
+      id: liveVehicle.id,
+      code: fault.code,
+      message: fault.description // Mapped to 'desc' in CreateJobModal
+    });
+    setIsCreateJobOpen(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-4 animate-fade-in font-sans">
@@ -35,27 +46,19 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
         <div className="relative z-20 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-start bg-white shrink-0">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-1.5">
-              <h2 className="text-xl md:text-2xl font-bold text-slate-900 truncate uppercase tracking-tight">
-                {liveVehicle.id}
-              </h2>
-              
+              <h2 className="text-xl md:text-2xl font-bold text-slate-900 truncate uppercase tracking-tight">{liveVehicle.id}</h2>
               <div className="flex items-center gap-2">
                 <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border 
-                  ${liveVehicle.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' :
-                    liveVehicle.activity === 'Under Maintenance' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                  ${liveVehicle.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                   {liveVehicle.activity || 'Inactive'}
                 </span>
-
-                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border animate-in fade-in
-                  ${liveVehicle.status === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' :
-                    liveVehicle.status === 'Warning' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    'bg-green-100 text-green-700 border-green-200'}`}>
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border 
+                  ${liveVehicle.status === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' : 'bg-green-100 text-green-700 border-green-200'}`}>
                   {liveVehicle.status || 'NORMAL'}
                 </span>
               </div>
             </div>
-            <p className="text-[10px] md:text-sm text-slate-400 font-semibold uppercase tracking-widest">Plate: {liveVehicle.plate}</p>
+            <p className="text-[10px] md:text-sm text-slate-400 font-semibold uppercase tracking-widest text-left">Plate: {liveVehicle.plate}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
             <X size={24} />
@@ -85,14 +88,17 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
           {/* --- DTC WARNING BANNER --- */}
           {showLiveFaults && (
             <div 
-              onClick={() => setActiveTab('dtc')}
+              onClick={() => {
+                setActiveTab('dtc');
+                dtcListRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }}
               className="mb-6 p-4 bg-red-600 rounded-xl shadow-lg shadow-red-200 flex items-center justify-between cursor-pointer hover:bg-red-700 transition-all animate-in zoom-in-95 group"
             >
               <div className="flex items-center gap-3">
                 <div className="bg-white/20 p-2 rounded-lg">
                   <AlertOctagon size={20} className="text-white animate-pulse" />
                 </div>
-                <div>
+                <div className='text-left'>
                   <h4 className="text-white text-[10px] font-black uppercase tracking-widest leading-none mb-1">Critical System Fault</h4>
                   <p className="text-red-100 text-xs font-bold uppercase tracking-tight">
                     {activeFaults.length} Active {activeFaults.length === 1 ? 'Code' : 'Codes'} detected via OBD-II
@@ -110,43 +116,18 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
               <DiagCard title="RPM" value={isDeviceActive ? (liveVehicle.rpm || 0) : "--"} unit="" color={isDeviceActive ? getStatusColor(liveVehicle.rpm, 'RPM') : "text-slate-400"} icon={<Activity size={18} />} />
               <DiagCard title="Speed" value={isDeviceActive ? (liveVehicle.speed || 0) : "--"} unit="km/h" color={isDeviceActive ? getStatusColor(liveVehicle.speed, 'SPEED') : "text-slate-400"} icon={<Gauge size={18} />} />
+              <DiagCard title="Coolant" value={isDeviceActive ? (liveVehicle.temp || 0) : "--"} unit="°C" color={isDeviceActive ? getStatusColor(liveVehicle.temp, 'TEMP') : "text-slate-400"} icon={<Thermometer size={18} />} />
+              <DiagCard title="Battery" value={isDeviceActive ? (liveVehicle.battery || 0) : "--"} unit="V" color={isDeviceActive ? getStatusColor(liveVehicle.battery, 'BATTERY') : "text-slate-400"} icon={<Battery size={18} />} />
+              <DiagCard title="Fuel" value={isDeviceActive ? (liveVehicle.fuel || 0) : "--"} unit="%" color={isDeviceActive ? getStatusColor(liveVehicle.fuel, 'FUEL') : "text-slate-400"} icon={<Droplet size={18} />} />
               
-              <DiagCard 
-                title="Coolant" 
-                value={isDeviceActive ? (liveVehicle.temp || 0) : "--"} 
-                unit="°C" 
-                color={isDeviceActive ? getStatusColor(liveVehicle.temp, 'TEMP') : "text-slate-400"} 
-                icon={<Thermometer size={18} />} 
-              />
-              <DiagCard 
-                title="Battery" 
-                value={isDeviceActive ? (liveVehicle.battery || 0) : "--"} 
-                unit="V" 
-                color={isDeviceActive ? getStatusColor(liveVehicle.battery, 'BATTERY') : "text-slate-400"} 
-                icon={<Battery size={18} />} 
-              />
-              <DiagCard 
-                title="Fuel" 
-                value={isDeviceActive ? (liveVehicle.fuel || 0) : "--"} 
-                unit="%" 
-                color={isDeviceActive ? getStatusColor(liveVehicle.fuel, 'FUEL') : "text-slate-400"} 
-                icon={<Droplet size={18} />} 
-              />
-              
-              <div className={`bg-white p-3 md:p-5 rounded-xl border shadow-sm flex items-center justify-between ${
-                milActive ? 'border-red-200 bg-red-50' : 'border-slate-200'
-              }`}>
-                <div className="min-w-0">
+              <div className={`bg-white p-3 md:p-5 rounded-xl border shadow-sm flex items-center justify-between ${milActive ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
+                <div className="min-w-0 text-left">
                   <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">MIL Status</div>
-                  <div className={`text-sm md:text-xl uppercase font-black ${
-                    milActive ? 'text-red-600 animate-pulse' : 'text-green-600'
-                  }`}>
+                  <div className={`text-sm md:text-xl uppercase font-black ${milActive ? 'text-red-600 animate-pulse' : 'text-green-600'}`}>
                     {isDeviceActive ? (milActive ? 'CHECK ENGINE' : 'OPERATIONAL') : '--'}
                   </div>
                 </div>
-                <div className={`p-2 rounded-full ${
-                  milActive ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                }`}>
+                <div className={`p-2 rounded-full ${milActive ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
                    {milActive ? <AlertOctagon size={20} /> : <CheckCircle size={20} />}
                 </div>
               </div>
@@ -155,26 +136,31 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
 
           {/* TAB 2: DTC CODES */}
           {activeTab === 'dtc' && (
-            <div className="space-y-3">
+            <div className="space-y-3" ref={dtcListRef}>
               {dtcLoading ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed animate-pulse">
                   <Loader2 size={32} className="text-blue-500 animate-spin mb-3" />
                   <h3 className="text-sm font-bold text-slate-800 uppercase">Scanning Systems</h3>
-                  <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mt-1">Retrieving OBD-II Telemetry</p>
                 </div>
               ) : showLiveFaults ? (
                 activeFaults.map((fault, index) => (
                   <div key={index} className="p-4 rounded-xl border flex items-start gap-4 bg-red-50 border-red-100 shadow-sm animate-in slide-in-from-bottom-2">
                     <AlertTriangle size={20} className="text-red-500 mt-1 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="font-bold text-slate-800 uppercase leading-none">{fault.code}</span>
-                        <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded-md bg-red-200 text-red-800 tracking-widest truncate">
-                          {fault.category}
-                        </span>
-                        <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-red-600 text-white animate-pulse">
-                          {fault.status}
-                        </span>
+                    <div className="flex-1 text-left min-w-0">
+                      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                        <div className='flex items-center gap-2'>
+                          <span className="font-bold text-slate-800 uppercase leading-none">{fault.code}</span>
+                          <span className="text-[8px] font-bold uppercase px-2 py-0.5 rounded-md bg-red-200 text-red-800 truncate">
+                            {fault.category}
+                          </span>
+                        </div>
+                        {/* THE BUTTON TO OPEN CREATE JOB MODAL */}
+                        <button 
+                          onClick={() => handleInitiateTask(fault)}
+                          className="flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white rounded-md text-[10px] font-black uppercase hover:bg-red-700 transition-colors shadow-sm"
+                        >
+                          <Wrench size={12} /> Create Job
+                        </button>
                       </div>
                       <p className="text-xs md:text-sm text-slate-700 font-semibold leading-relaxed">{fault.description}</p>
                     </div>
@@ -195,7 +181,7 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
           {/* TAB 3: LOCATION */}
           {activeTab === 'location' && (
             <div className="space-y-4">
-              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+              <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-left">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Activity</p>
@@ -219,13 +205,24 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
           )}
         </div>
       </div>
+
+      {/* --- INTEGRATED CREATE JOB MODAL --- */}
+      <CreateJobModal 
+        isOpen={isCreateJobOpen} 
+        onClose={() => setIsCreateJobOpen(false)}
+        vehicle={selectedFault} // Pass the fault data (id, code, message)
+        onSuccess={() => {
+          setIsCreateJobOpen(false);
+          // Optional: You could add a small success notification here
+        }}
+      />
     </div>
   );
 };
 
 const DiagCard = ({ title, value, unit, icon, color = "text-slate-700" }) => (
   <div className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-    <div className="min-w-0">
+    <div className="min-w-0 text-left">
       <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{title}</div>
       <div className="flex items-baseline gap-1">
         <span className={`text-sm md:text-2xl font-black truncate ${color}`}>{value}</span>

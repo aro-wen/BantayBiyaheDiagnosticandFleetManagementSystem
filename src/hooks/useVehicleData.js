@@ -17,8 +17,8 @@ export const useVehicleData = (vehicleId) => {
     if (data.activity !== 'Active') {
       return {
         ...data,
-        speed: 0,
-        rpm: 0,
+        speed: null,
+        rpm: null,
         temp: null,     // Set to null to show "---" in your dashboard
         battery: null,
         fuel: null,
