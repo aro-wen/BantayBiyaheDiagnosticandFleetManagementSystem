@@ -17,21 +17,23 @@ export const JobProvider = ({ children }) => {
 
   // --- SUSTAINABILITY & RECURSION CONTROL ---
   const alertCooldowns = useRef({});
-  // 🔥 GATEKEEPER: Prevents infinite loops by tracking the last processed state of each vehicle
   const lastProcessedFingerprint = useRef({}); 
   const COOLDOWN_MINUTES = 15;
 
-  // --- HELPER: REALTIME UPDATER (Deduplicated) ---
+  // --- HELPER: REALTIME UPDATER (ID-Aware) ---
   const handleRealtimePayload = (currentArray, payload) => {
-    if (payload.eventType === 'INSERT') {
-      const exists = currentArray.some(item => String(item.id) === String(payload.new.id));
-      return exists ? currentArray : [payload.new, ...currentArray];
+    const { eventType, new: newRow, old: oldRow } = payload;
+    
+    if (eventType === 'INSERT') {
+      const exists = currentArray.some(item => String(item.id) === String(newRow.id));
+      return exists ? currentArray : [newRow, ...currentArray];
     }
-    if (payload.eventType === 'UPDATE') {
-      return currentArray.map(item => String(item.id) === String(payload.new.id) ? payload.new : item);
+    if (eventType === 'UPDATE') {
+      return currentArray.map(item => String(item.id) === String(newRow.id) ? newRow : item);
     }
-    if (payload.eventType === 'DELETE') {
-      return currentArray.filter(item => String(item.id) !== String(payload.old.id));
+    if (eventType === 'DELETE') {
+      const deletedId = oldRow ? oldRow.id : payload.old.id;
+      return currentArray.filter(item => String(item.id) !== String(deletedId));
     }
     return currentArray;
   };
@@ -43,25 +45,46 @@ export const JobProvider = ({ children }) => {
 
     const dbChannel = supabase
       .channel('global-fleet-sync')
-      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+      .on(
+        'postgres_changes', 
+        { event: '*', schema: 'public' }, 
+        (payload) => {
           const { table, eventType, new: newRow } = payload;
 
-          if (table === 'vehicles') {
-            setVehicles(prev => handleRealtimePayload(prev, payload));
-            // Trigger health check only on updates to avoid loop on initial insert
-            if (eventType === 'UPDATE') checkVehicleHealth(newRow);
-          } 
-          else if (table === 'alerts') setAlerts(prev => handleRealtimePayload(prev, payload));
-          else if (table === 'jobs' || table === 'maintenance_tasks') setJobs(prev => handleRealtimePayload(prev, payload));
-          else if (table === 'dtcs') setDtcs(prev => handleRealtimePayload(prev, payload));
-          else if (table === 'drivers') setDrivers(prev => handleRealtimePayload(prev, payload));
-          else if (table === 'notes' || table === 'maintenance_notes') setNotes(prev => handleRealtimePayload(prev, payload));
-      })
+          switch (table) {
+            case 'vehicles':
+              setVehicles(prev => handleRealtimePayload(prev, payload));
+              if (eventType === 'UPDATE') checkVehicleHealth(newRow);
+              break;
+            case 'alerts':
+              setAlerts(prev => handleRealtimePayload(prev, payload));
+              break;
+            case 'maintenance_tasks':
+            case 'jobs':
+              setJobs(prev => handleRealtimePayload(prev, payload));
+              break;
+            case 'dtcs':
+              setDtcs(prev => handleRealtimePayload(prev, payload));
+              break;
+            case 'drivers':
+              setDrivers(prev => handleRealtimePayload(prev, payload));
+              break;
+            case 'maintenance_notes':
+            case 'notes':
+              setNotes(prev => handleRealtimePayload(prev, payload));
+              break;
+            default:
+              break;
+          }
+        }
+      )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') console.log("📡 Realtime Fleet Sync Active");
       });
 
-    return () => supabase.removeChannel(dbChannel);
+    return () => {
+      supabase.removeChannel(dbChannel);
+    };
   }, []);
 
   const fetchAllData = async () => {
@@ -75,6 +98,7 @@ export const JobProvider = ({ children }) => {
         supabase.from('dtcs').select('*').order('created_at', { ascending: false }),
         supabase.from('alerts').select('*').order('created_at', { ascending: false }),
       ]);
+      
       if (jobsData.data) setJobs(jobsData.data);
       if (vehiclesData.data) setVehicles(vehiclesData.data);
       if (driversData.data) setDrivers(driversData.data);
@@ -82,18 +106,15 @@ export const JobProvider = ({ children }) => {
       if (dtcsData.data) setDtcs(dtcsData.data);
       if (alertsData.data) setAlerts(alertsData.data);
     } catch (error) {
-      console.error("Fetch Error:", error);
+      console.error("Initial Fetch Error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- 🔥 AUTOMATED ALERT LOGIC (LOOP PROTECTED) ---
+  // --- 🔥 AUTOMATED ALERT LOGIC ---
   const checkVehicleHealth = async (vehicle) => {
-    // 1. Create unique fingerprint of critical values
     const fingerprint = `${vehicle.id}-${vehicle.temp}-${vehicle.speed}-${vehicle.battery}-${vehicle.fuel}-${vehicle.mil}`;
-    
-    // 2. EXIT if this exact data state was already processed (Stops 502/Loop)
     if (lastProcessedFingerprint.current[vehicle.id] === fingerprint) return;
     lastProcessedFingerprint.current[vehicle.id] = fingerprint;
 
@@ -101,55 +122,61 @@ export const JobProvider = ({ children }) => {
     const newAlerts = [];
     const isIdling = (vehicle.speed || 0) <= 5;
 
-    // Engine Temp
+    // 1. ENGINE TEMP
     if (vehicle.temp >= T.TEMP.WARNING) {
       const type = vehicle.temp >= T.TEMP.CRITICAL ? 'Critical' : 'Warning';
-      const msg = `High Engine Temp: ${vehicle.temp}°C`;
-      if (shouldSendAlert(vehicle.id, 'TEMP', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, type, 'Diagnostic'));
+      if (shouldSendAlert(vehicle.id, 'TEMP')) {
+        newAlerts.push(createAlertObj(vehicle.id, `High Engine Temp: ${vehicle.temp}°C`, type, 'Diagnostic'));
+      }
     }
 
-    // Speeding
+    // 2. SPEEDING
     if (vehicle.speed >= T.SPEED.WARNING) {
       const type = vehicle.speed >= T.SPEED.MAX ? 'Critical' : 'Warning';
-      const msg = `Speeding: ${vehicle.speed} km/h`;
-      if (shouldSendAlert(vehicle.id, 'SPEED', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, type, 'Behavior'));
+      if (shouldSendAlert(vehicle.id, 'SPEED')) {
+        newAlerts.push(createAlertObj(vehicle.id, `Speeding Detected: ${vehicle.speed} km/h`, type, 'Behavior'));
+      }
     }
 
-    // Battery
+    // 3. BATTERY
     if (vehicle.battery <= T.BATTERY.WARNING_LOW) {
       const type = vehicle.battery <= T.BATTERY.CRITICAL_LOW ? 'Critical' : 'Warning';
-      const msg = `Battery Voltage: ${vehicle.battery}V`;
-      if (shouldSendAlert(vehicle.id, 'BATTERY', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, type, 'Diagnostic'));
+      if (shouldSendAlert(vehicle.id, 'BATTERY')) {
+        newAlerts.push(createAlertObj(vehicle.id, `Low Battery Voltage: ${vehicle.battery}V`, type, 'Diagnostic'));
+      }
     }
 
-    // Fuel Consumption (Speed-Aware)
+    // 4. FUEL CONSUMPTION (Fixed Units per Thresholds)
     if (isIdling) {
       if (vehicle.fuel >= T.FUEL.IDLING.WARNING) {
         const type = vehicle.fuel >= T.FUEL.IDLING.CRITICAL ? 'Critical' : 'Warning';
-        const msg = `High Idle Consumption: ${(vehicle.fuel || 0).toFixed(1)} L/h`;
-        if (shouldSendAlert(vehicle.id, 'FUEL', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, type, 'Diagnostic'));
+        if (shouldSendAlert(vehicle.id, 'FUEL')) {
+          newAlerts.push(createAlertObj(vehicle.id, `High Idle Consumption: ${(vehicle.fuel || 0).toFixed(1)} L/h`, type, 'Fuel'));
+        }
       }
     } else {
       if (vehicle.fuel <= T.FUEL.MOVING.WARNING) {
         const type = vehicle.fuel <= T.FUEL.MOVING.CRITICAL ? 'Critical' : 'Warning';
-        const msg = `Low Efficiency: ${(vehicle.fuel || 0).toFixed(1)} km/L`;
-        if (shouldSendAlert(vehicle.id, 'FUEL', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, type, 'Diagnostic'));
+        if (shouldSendAlert(vehicle.id, 'FUEL')) {
+          newAlerts.push(createAlertObj(vehicle.id, `Low Fuel Efficiency: ${(vehicle.fuel || 0).toFixed(1)} km/L`, type, 'Fuel'));
+        }
       }
     }
 
-    // MIL Status
+    // 5. MIL STATUS
     if (T.MIL.TRIGGER_VALUES.includes(vehicle.mil)) {
-      const msg = "Check Engine Light (MIL) Active";
-      if (shouldSendAlert(vehicle.id, 'MIL', msg)) newAlerts.push(createAlertObj(vehicle.id, msg, 'Critical', 'Diagnostic'));
+      if (shouldSendAlert(vehicle.id, 'MIL')) {
+        newAlerts.push(createAlertObj(vehicle.id, "Check Engine Light (MIL) Active", 'Critical', 'Diagnostic'));
+      }
     }
 
     if (newAlerts.length > 0) {
       const { error } = await supabase.from('alerts').insert(newAlerts);
-      if (error) console.error("Alert Insert Error:", error);
+      if (error) console.error("Alert Sync Error:", error);
     }
   };
 
-  const shouldSendAlert = (vehicleId, issueType, message) => {
+  const shouldSendAlert = (vehicleId, issueType) => {
     const key = `${vehicleId}_${issueType}`;
     const now = Date.now();
     const lastSent = alertCooldowns.current[key];
@@ -171,23 +198,13 @@ export const JobProvider = ({ children }) => {
 
   // --- ACTIONS ---
   const addNewJob = async (jobData) => {
-    const { data, error } = await supabase.from('jobs').insert([jobData]).select();
-    // Note: handleRealtimePayload will add the job to the UI automatically
+    const { error } = await supabase.from('jobs').insert([jobData]);
     if (error) console.error("Job Creation Error:", error);
   };
 
-  const startJob = async (id) => {
-    await supabase.from('jobs').update({ status: 'In Progress' }).eq('id', id);
-  };
-
-  const completeJob = async (id) => {
-    await supabase.from('jobs').update({ status: 'Completed' }).eq('id', id);
-  };
-  
-  const addNote = async (noteData) => {
-    await supabase.from('notes').insert([noteData]);
-  };
-
+  const startJob = async (id) => await supabase.from('jobs').update({ status: 'In Progress' }).eq('id', id);
+  const completeJob = async (id) => await supabase.from('jobs').update({ status: 'Completed' }).eq('id', id);
+  const addNote = async (noteData) => await supabase.from('notes').insert([noteData]);
   const assignDriver = async (driverId, vehicleId) => await supabase.from('drivers').update({ vehicle: vehicleId }).eq('id', driverId);
   const unassignDriver = async (driverId) => await supabase.from('drivers').update({ vehicle: 'Not assigned' }).eq('id', driverId);
   const markAlertRead = async (id) => await supabase.from('alerts').update({ status: 'Read' }).eq('id', id);
@@ -218,7 +235,7 @@ export const JobProvider = ({ children }) => {
         }).map(sch => createAlertObj(sch.vehicle_id, `Routine Maintenance Due: ${sch.service_type}`, 'Info', 'Maintenance'));
 
       if (newAlerts.length > 0) await supabase.from('alerts').insert(newAlerts);
-    } catch (err) { console.error("Auto-Maintenance Failed:", err); }
+    } catch (err) { console.error("Schedule Check Failed:", err); }
   };
 
   return (
