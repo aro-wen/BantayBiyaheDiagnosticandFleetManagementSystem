@@ -12,7 +12,6 @@ const JobDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  // Destructuring all necessary functions and states from your existing hook
   const { 
     job, 
     vehicle, 
@@ -33,19 +32,16 @@ const JobDetails = () => {
     
     setIsSubmitting(true);
     try {
-      // 1. Construct the content for the Service Record
       const content = `[${job.id}] Diagnosis: ${report.diagnosis || 'N/A'}. Action: ${report.actionTaken}. Parts: ${report.partsUsed || 'None'}.`;
       
-      // 2. Add the formal note to the maintenance_history table
       await addNote({
         vehicle: job.vehicle,
         type: 'Service Record',
         content,
         job_id: job.id,
-        tech: 'Juan dela Cruz' // This could be replaced with auth user context later
+        tech: 'Juan dela Cruz' 
       });
 
-      // 3. Update the job status to 'Completed' (which triggers the vehicle activity sync via your DB trigger)
       await completeJob(job.id);
       
       setIsModalOpen(false);
@@ -75,8 +71,12 @@ const JobDetails = () => {
     </div>
   );
 
+  // Helper for dynamic fuel logic
+  const speed = vehicle?.speed || 0;
+  const fuelVal = vehicle?.fuel || 0;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-10 p-2 md:p-4">
+    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-10 p-2 md:p-4 text-left">
       {/* Header Navigation */}
       <div className="flex items-center justify-between">
         <button onClick={() => navigate(-1)} className="flex items-center text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors">
@@ -151,20 +151,25 @@ const JobDetails = () => {
         {/* Right Column: OBD Real-time Telemetry */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm sticky top-6">
-            <h3 className="font-black text-[11px] text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">OBD-II Real-time Snapshot</h3>
+            <h3 className="font-black text-[11px] text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2 text-left">OBD-II Real-time Snapshot</h3>
             <div className="space-y-4">
               <div className={`p-4 rounded-xl border flex items-center gap-3 font-bold text-sm transition-colors ${vehicle?.mil === 'ON' ? 'bg-red-50 border-red-100 text-red-600' : 'bg-green-50 border-green-100 text-green-600'}`}>
                 {vehicle?.mil === 'ON' ? <AlertTriangle size={20} className="animate-pulse" /> : <CheckCircle size={20} />}
-                <div className="flex flex-col">
+                <div className="flex flex-col text-left">
                   <span className="leading-none">{vehicle?.mil === 'ON' ? 'DTC Error Detected' : 'Systems Operational'}</span>
                   <span className="text-[9px] opacity-70 uppercase tracking-widest mt-1">Check Engine Light: {vehicle?.mil || 'OFF'}</span>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <TelemetryTile label="Coolant" value={`${vehicle?.temp || 0}°C`} />
+                <TelemetryTile label="Coolant" value={`${vehicle?.temp || 0}°C`} color={getStatusColor(vehicle?.temp, 'TEMP')} />
                 <TelemetryTile label="RPM" value={vehicle?.rpm || 0} color={getStatusColor(vehicle?.rpm, 'RPM')} />
-                <TelemetryTile label="Battery" value={`${vehicle?.battery || 0}V`} />
-                <TelemetryTile label="Fuel Level" value={`${vehicle?.fuel || 0}%`} />
+                <TelemetryTile label="Battery" value={`${vehicle?.battery || 0}V`} color={getStatusColor(vehicle?.battery, 'BATTERY')} />
+                {/* Dynamic Fuel Display */}
+                <TelemetryTile 
+                  label="Fuel" 
+                  value={speed <= 5 ? `${fuelVal.toFixed(1)} L/h` : `${fuelVal.toFixed(1)} km/L`} 
+                  color={getStatusColor(fuelVal, 'FUEL', speed)} 
+                />
               </div>
             </div>
           </div>
@@ -189,13 +194,13 @@ const JobDetails = () => {
 
 const InfoSection = ({ title, children }) => (
   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-    <h3 className="font-black text-[11px] text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">{title}</h3>
+    <h3 className="font-black text-[11px] text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2 text-left">{title}</h3>
     {children}
   </div>
 );
 
 const DataItem = ({ label, value, icon }) => (
-  <div>
+  <div className="text-left">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none block mb-1.5">{label}</label>
     <div className="text-base font-bold text-slate-800 flex items-center gap-1.5 truncate">
       {icon && <span className="shrink-0">{icon}</span>}
@@ -206,19 +211,19 @@ const DataItem = ({ label, value, icon }) => (
 
 const TelemetryTile = ({ label, value, color = 'text-slate-700' }) => (
   <div className="p-3 bg-slate-50 rounded-xl text-center border border-slate-100">
-    <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">{label}</div>
-    <div className={`font-bold text-lg ${color}`}>{value}</div>
+    <div className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1 truncate">{label}</div>
+    <div className={`font-bold text-sm md:text-lg ${color}`}>{value}</div>
   </div>
 );
 
 const HistorySection = ({ history }) => (
   <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-    <div className="flex items-center gap-2 mb-4 border-b border-slate-50 pb-2 font-black text-[11px] text-slate-400 uppercase tracking-widest">
+    <div className="flex items-center gap-2 mb-4 border-b border-slate-50 pb-2 font-black text-[11px] text-slate-400 uppercase tracking-widest text-left">
       <Wrench size={14} className="text-blue-600" /> Maintenance History
     </div>
     <div className="space-y-4">
       {history.length > 0 ? history.map(note => (
-        <div key={note.id} className="flex gap-4">
+        <div key={note.id} className="flex gap-4 text-left">
           <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
             {note.type === 'Service Record' ? <CheckCircle className="text-green-500" size={18}/> : <FileText className="text-blue-500" size={18}/>}
           </div>
@@ -249,7 +254,7 @@ const ReportModal = ({ onClose, onSubmit, report, setReport, isSubmitting }) => 
         </h3>
         <button onClick={onClose} className="p-1 hover:bg-white rounded-lg transition-all text-slate-400"><X size={24}/></button>
       </div>
-      <div className="p-6 space-y-4">
+      <div className="p-6 space-y-4 text-left">
         <ModalField label="Diagnosis / Issues Found" value={report.diagnosis} onChange={v => setReport({...report, diagnosis: v})} placeholder="e.g. Worn brake pads, loose calipers" />
         <ModalField label="Action Taken (Required)" value={report.actionTaken} onChange={v => setReport({...report, actionTaken: v})} placeholder="Describe repairs performed..." isArea />
         <ModalField label="Parts Used" value={report.partsUsed} onChange={v => setReport({...report, partsUsed: v})} placeholder="e.g. 1x Front Brake Pad Set" />
@@ -272,7 +277,7 @@ const ReportModal = ({ onClose, onSubmit, report, setReport, isSubmitting }) => 
 
 const ModalField = ({ label, value, onChange, placeholder, isArea }) => (
   <div>
-    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none">{label}</label>
+    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 leading-none text-left">{label}</label>
     {isArea ? (
       <textarea className="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white outline-none text-sm font-semibold transition-all resize-none" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
     ) : (

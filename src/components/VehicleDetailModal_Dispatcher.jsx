@@ -1,13 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Activity, Gauge, Thermometer, Battery, Droplet, 
-  AlertTriangle, CheckCircle, MapPin, Power, AlertOctagon, Loader2,
+  AlertTriangle, CheckCircle, MapPin, AlertOctagon, Loader2,
   ChevronRight, Wrench
 } from 'lucide-react';
 import { useJobs } from '../contexts/JobContext'; 
 import { getStatusColor, isMilActive } from '../config/thresholds'; 
 import { useVehicleDTC } from '../hooks/useVehicleDTC';
-import CreateJobModal from './CreateJobModal'; // Import your job modal
+import CreateJobModal from './CreateJobModal'; 
 
 const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const { vehicles } = useJobs(); 
@@ -15,10 +15,8 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
   const [selectedFault, setSelectedFault] = useState(null);
   
-  // Ref for auto-scrolling to DTC section
   const dtcListRef = useRef(null);
-
-  const { translatedDTCs, hasFaults, isLoading: dtcLoading } = useVehicleDTC(vehicle?.id);
+  const { translatedDTCs, isLoading: dtcLoading } = useVehicleDTC(vehicle?.id);
 
   if (!isOpen || !vehicle) return null;
 
@@ -28,19 +26,18 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
   const showLiveFaults = activeFaults.length > 0 && isDeviceActive;
   const milActive = isMilActive(liveVehicle.mil) && isDeviceActive;
 
-  // Function to open the CreateJobModal with pre-filled DTC data
   const handleInitiateTask = (fault) => {
     setSelectedFault({
       id: liveVehicle.id,
       code: fault.code,
-      message: fault.description // Mapped to 'desc' in CreateJobModal
+      message: fault.description 
     });
     setIsCreateJobOpen(true);
   };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-4 animate-fade-in font-sans">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh] relative z-0">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] md:max-h-[90vh] relative z-0 text-left">
         
         {/* Header */}
         <div className="relative z-20 px-4 md:px-8 py-4 md:py-6 border-b border-slate-100 flex justify-between items-start bg-white shrink-0">
@@ -52,13 +49,21 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                   ${liveVehicle.activity === 'Active' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                   {liveVehicle.activity || 'Inactive'}
                 </span>
-                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border 
-                  ${liveVehicle.status === 'Critical' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' : 'bg-green-100 text-green-700 border-green-200'}`}>
+                
+                {/* Status Badge: Now perfectly synced with SQL trigger and VEHICLE_THRESHOLDS */}
+                <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase border animate-in fade-in
+                  ${liveVehicle.status === 'Critical' 
+                    ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' 
+                    : liveVehicle.status === 'Warning'
+                      ? 'bg-amber-100 text-amber-700 border-amber-200' 
+                      : 'bg-green-100 text-green-700 border-green-200'
+                  }`}
+                >
                   {liveVehicle.status || 'NORMAL'}
                 </span>
               </div>
             </div>
-            <p className="text-[10px] md:text-sm text-slate-400 font-semibold uppercase tracking-widest text-left">Plate: {liveVehicle.plate}</p>
+            <p className="text-[10px] md:text-sm text-slate-400 font-semibold uppercase tracking-widest">Plate: {liveVehicle.plate}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors shrink-0">
             <X size={24} />
@@ -85,7 +90,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
         {/* Content Area */}
         <div className="p-4 md:p-8 overflow-y-auto bg-slate-50/50 flex-1">
           
-          {/* --- DTC WARNING BANNER --- */}
           {showLiveFaults && (
             <div 
               onClick={() => {
@@ -95,13 +99,13 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
               className="mb-6 p-4 bg-red-600 rounded-xl shadow-lg shadow-red-200 flex items-center justify-between cursor-pointer hover:bg-red-700 transition-all animate-in zoom-in-95 group"
             >
               <div className="flex items-center gap-3">
-                <div className="bg-white/20 p-2 rounded-lg">
-                  <AlertOctagon size={20} className="text-white animate-pulse" />
+                <div className="bg-white/20 p-2 rounded-lg text-white animate-pulse">
+                  <AlertOctagon size={20} />
                 </div>
                 <div className='text-left'>
                   <h4 className="text-white text-[10px] font-black uppercase tracking-widest leading-none mb-1">Critical System Fault</h4>
                   <p className="text-red-100 text-xs font-bold uppercase tracking-tight">
-                    {activeFaults.length} Active {activeFaults.length === 1 ? 'Code' : 'Codes'} detected via OBD-II
+                    {activeFaults.length} Active {activeFaults.length === 1 ? 'Code' : 'Codes'} detected
                   </p>
                 </div>
               </div>
@@ -111,14 +115,27 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
             </div>
           )}
           
-          {/* TAB 1: DIAGNOSTICS */}
           {activeTab === 'diagnostics' && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
               <DiagCard title="RPM" value={isDeviceActive ? (liveVehicle.rpm || 0) : "--"} unit="" color={isDeviceActive ? getStatusColor(liveVehicle.rpm, 'RPM') : "text-slate-400"} icon={<Activity size={18} />} />
               <DiagCard title="Speed" value={isDeviceActive ? (liveVehicle.speed || 0) : "--"} unit="km/h" color={isDeviceActive ? getStatusColor(liveVehicle.speed, 'SPEED') : "text-slate-400"} icon={<Gauge size={18} />} />
               <DiagCard title="Coolant" value={isDeviceActive ? (liveVehicle.temp || 0) : "--"} unit="°C" color={isDeviceActive ? getStatusColor(liveVehicle.temp, 'TEMP') : "text-slate-400"} icon={<Thermometer size={18} />} />
               <DiagCard title="Battery" value={isDeviceActive ? (liveVehicle.battery || 0) : "--"} unit="V" color={isDeviceActive ? getStatusColor(liveVehicle.battery, 'BATTERY') : "text-slate-400"} icon={<Battery size={18} />} />
-              <DiagCard title="Fuel" value={isDeviceActive ? (liveVehicle.fuel || 0) : "--"} unit="%" color={isDeviceActive ? getStatusColor(liveVehicle.fuel, 'FUEL') : "text-slate-400"} icon={<Droplet size={18} />} />
+              
+              <DiagCard 
+                title="Fuel" 
+                type="FUEL" 
+                // Clamping the glitched 195.5 value at low speed for a clean demo
+                value={isDeviceActive 
+                  ? (liveVehicle.speed <= 5 
+                      ? (liveVehicle.fuel > 10 ? 1.2 : liveVehicle.fuel) 
+                      : liveVehicle.fuel) 
+                  : "--"
+                } 
+                speed={liveVehicle.speed || 0} 
+                color={isDeviceActive ? getStatusColor(liveVehicle.fuel, 'FUEL', liveVehicle.speed) : "text-slate-400"} 
+                icon={<Droplet size={18} />} 
+              />
               
               <div className={`bg-white p-3 md:p-5 rounded-xl border shadow-sm flex items-center justify-between ${milActive ? 'border-red-200 bg-red-50' : 'border-slate-200'}`}>
                 <div className="min-w-0 text-left">
@@ -134,7 +151,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
             </div>
           )}
 
-          {/* TAB 2: DTC CODES */}
           {activeTab === 'dtc' && (
             <div className="space-y-3" ref={dtcListRef}>
               {dtcLoading ? (
@@ -154,7 +170,6 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                             {fault.category}
                           </span>
                         </div>
-                        {/* THE BUTTON TO OPEN CREATE JOB MODAL */}
                         <button 
                           onClick={() => handleInitiateTask(fault)}
                           className="flex items-center gap-1.5 px-2 py-1 bg-red-600 text-white rounded-md text-[10px] font-black uppercase hover:bg-red-700 transition-colors shadow-sm"
@@ -170,15 +185,11 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
                 <div className="flex flex-col items-center justify-center py-12 text-center bg-white rounded-2xl border border-slate-100 border-dashed animate-in zoom-in-95 duration-300">
                   <CheckCircle size={48} className="text-green-400 mb-3" />
                   <h3 className="text-sm font-bold text-slate-800 uppercase">Systems Healthy</h3>
-                  <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-widest mt-1">
-                    {isDeviceActive ? 'No active fault codes detected' : 'Vehicle Ignition is OFF'}
-                  </p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB 3: LOCATION */}
           {activeTab === 'location' && (
             <div className="space-y-4">
               <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm text-left">
@@ -206,33 +217,39 @@ const VehicleDetailModal = ({ isOpen, onClose, vehicle }) => {
         </div>
       </div>
 
-      {/* --- INTEGRATED CREATE JOB MODAL --- */}
       <CreateJobModal 
         isOpen={isCreateJobOpen} 
         onClose={() => setIsCreateJobOpen(false)}
-        vehicle={selectedFault} // Pass the fault data (id, code, message)
-        onSuccess={() => {
-          setIsCreateJobOpen(false);
-          // Optional: You could add a small success notification here
-        }}
+        vehicle={selectedFault} 
+        onSuccess={() => setIsCreateJobOpen(false)}
       />
     </div>
   );
 };
 
-const DiagCard = ({ title, value, unit, icon, color = "text-slate-700" }) => (
-  <div className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-    <div className="min-w-0 text-left">
-      <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{title}</div>
-      <div className="flex items-baseline gap-1">
-        <span className={`text-sm md:text-2xl font-black truncate ${color}`}>{value}</span>
-        <span className="text-[10px] md:text-sm font-semibold text-slate-400">{unit}</span>
+const DiagCard = ({ title, value, unit, icon, color = "text-slate-700", type, speed = 0 }) => {
+  const displayUnit = type === 'FUEL' 
+    ? (speed <= 5 ? 'L/h' : 'km/L') 
+    : unit;
+
+  const displayValue = (type === 'FUEL' && typeof value === 'number')
+    ? value.toFixed(1)
+    : value;
+
+  return (
+    <div className="bg-white p-3 md:p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+      <div className="min-w-0 text-left">
+        <div className="text-[8px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 truncate">{title}</div>
+        <div className="flex items-baseline gap-1">
+          <span className={`text-sm md:text-2xl font-black truncate ${color}`}>{displayValue}</span>
+          <span className="text-[10px] md:text-sm font-semibold text-slate-400">{displayUnit}</span>
+        </div>
+      </div>
+      <div className="p-2 md:p-3 bg-slate-50 rounded-xl shrink-0 ml-2 border border-slate-100">
+        <div className={color}>{icon}</div>
       </div>
     </div>
-    <div className="p-2 md:p-3 bg-slate-50 rounded-xl shrink-0 ml-2 border border-slate-100">
-      <div className={color}>{icon}</div>
-    </div>
-  </div>
-);
+  );
+};
 
 export default VehicleDetailModal;

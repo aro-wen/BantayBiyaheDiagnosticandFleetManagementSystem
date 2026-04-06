@@ -1,76 +1,73 @@
 // src/config/thresholds.js
 
 export const VEHICLE_THRESHOLDS = {
-  // --- RPM ---
-  RPM: {
-    MAX: 7000,       
-    WARNING: 6000,   
-  },
-
-  // --- SPEED (km/h) ---
-  SPEED: {
-    MAX: 140,        
-    WARNING: 100,    
-  },
-
-  // --- TEMPERATURE (°C) ---
-  TEMP: {
-    CRITICAL: 105,   
-    WARNING: 95,     
-  },
-
+  RPM: { MAX: 7000, WARNING: 6000 },
+  SPEED: { MAX: 140, WARNING: 100 },
+  TEMP: { CRITICAL: 105, WARNING: 95 },
+  
   // --- BATTERY (Volts) ---
-  BATTERY: {
-    LOW: 11.5,       
-    HIGH: 15.5,      
+  BATTERY: { 
+    CRITICAL_LOW: 11.5, 
+    WARNING_LOW: 11.8,   // Added to match SQL Trigger
+    CRITICAL_HIGH: 15.5 
   },
 
-  // --- FUEL (%) ---
+  // --- FUEL CONSUMPTION ---
   FUEL: {
-    LOW: 20,         
-    CRITICAL: 5,     
+    IDLING: { // Speed <= 5 (L/h) - Higher is worse
+      CRITICAL: 4.0,
+      WARNING: 2.5,
+    },
+    MOVING: { // Speed > 5 (km/L) - Lower is worse
+      CRITICAL: 4.0,
+      WARNING: 6.0,
+    }
   },
 
-  // --- MIL (Check Engine) ---
-  // We list all values that should trigger the light
   MIL: {
-    TRIGGER_VALUES: [true, 'ON', 'on', 'TRUE', 1, , 'Check Engine', 'Check Engine', 'CHECK ENGINE'] 
+    TRIGGER_VALUES: [true, 'ON', 'on', 'TRUE', 1, 'Check Engine', 'CHECK ENGINE'] 
   }
 };
 
-/**
- * Helper to determine status color/class based on value
- */
-export const getStatusColor = (value, type) => {
+export const getStatusColor = (value, type, speed = 0) => {
   const T = VEHICLE_THRESHOLDS;
 
   switch (type) {
     case 'RPM':
       if (value >= T.RPM.MAX) return 'text-red-500 animate-pulse font-bold';
       if (value >= T.RPM.WARNING) return 'text-orange-500 font-bold';
-      return 'text-cyan-400';
+      return 'text-green-500 font-bold tracking-wider';
 
     case 'SPEED':
       if (value >= T.SPEED.MAX) return 'text-red-500 animate-pulse font-bold';
       if (value >= T.SPEED.WARNING) return 'text-orange-500 font-bold';
-      return 'text-cyan-400';
+      return 'text-green-500 font-bold tracking-wider';
 
     case 'TEMP':
       if (value >= T.TEMP.CRITICAL) return 'text-red-500 animate-pulse font-bold';
       if (value >= T.TEMP.WARNING) return 'text-orange-500';
-      return 'text-orange-400'; 
+      return 'text-green-500 font-bold tracking-wider'; 
 
     case 'BATTERY':
-      if (value <= T.BATTERY.LOW || value >= T.BATTERY.HIGH) return 'text-red-500 font-bold';
-      return 'text-blue-400';
+      // Updated to handle three states: Critical, Warning, and Normal
+      if (value <= T.BATTERY.CRITICAL_LOW || value >= T.BATTERY.CRITICAL_HIGH) 
+        return 'text-red-500 animate-pulse font-bold';
+      if (value <= T.BATTERY.WARNING_LOW) 
+        return 'text-orange-500 font-bold';
+      return 'text-green-500 font-bold tracking-wider';
 
     case 'FUEL':
-      if (value <= T.FUEL.CRITICAL) return 'text-red-500 animate-pulse font-bold';
-      if (value <= T.FUEL.LOW) return 'text-orange-500';
-      return 'text-green-400';
+      if (speed <= 5) {
+        if (value >= T.FUEL.IDLING.CRITICAL) return 'text-red-500 animate-pulse font-bold';
+        if (value >= T.FUEL.IDLING.WARNING) return 'text-orange-500';
+        return 'text-green-500 font-bold tracking-wider';
+      } else {
+        if (value <= T.FUEL.MOVING.CRITICAL) return 'text-red-500 animate-pulse font-bold';
+        if (value <= T.FUEL.MOVING.WARNING) return 'text-orange-500';
+        return 'text-green-500 font-bold tracking-wider';
+      }
 
     case 'MIL':
-      // Check if the value matches any of our "ON" triggers
       if (T.MIL.TRIGGER_VALUES.includes(value)) return 'text-amber-500 animate-pulse font-bold tracking-wider';
       return 'text-green-500 font-bold tracking-wider';
 
@@ -79,9 +76,6 @@ export const getStatusColor = (value, type) => {
   }
 };
 
-/**
- * Helper to check if MIL is strictly ON (returns boolean)
- */
 export const isMilActive = (value) => {
   return VEHICLE_THRESHOLDS.MIL.TRIGGER_VALUES.includes(value);
 };

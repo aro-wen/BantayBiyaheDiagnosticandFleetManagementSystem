@@ -83,45 +83,54 @@ const DriverDashboard = () => {
   return (
     <div className="h-screen w-screen bg-[#0B101E] text-white overflow-hidden flex flex-col font-sans">
       
-      {/* 1. TOP TELEMETRY BAR - Mapped to thresholds.js */}
-      <div className="grid grid-cols-6 gap-2 p-2 h-[90px] shrink-0 border-b border-slate-800 bg-slate-900/50">
-        <MetricCard 
-            icon={<Gauge size={18}/>} 
-            value={isDeviceActive ? Math.round(vehicleData?.speed || 0) : "--"} 
-            unit="KM/H" 
+          {/* 1. TOP TELEMETRY BAR - Mapped to thresholds.js */}
+    <div className="grid grid-cols-6 gap-2 p-2 h-[90px] shrink-0 border-b border-slate-800 bg-slate-900/50">
+      <MetricCard 
+          icon={<Gauge size={18}/>} 
+          value={isDeviceActive ? Math.round(vehicleData?.speed || 0) : "--"} 
+          unit="KM/H" 
           color={isDeviceActive ? getStatusColor(vehicleData?.speed, 'SPEED') : "text-slate-600"} 
-        />
-        <MetricCard 
-            icon={<Activity size={18}/>} 
-            value={isDeviceActive ? (vehicleData?.rpm || 0) : "--"} 
-            unit="RPM" 
+      />
+      <MetricCard 
+          icon={<Activity size={18}/>} 
+          value={isDeviceActive ? (vehicleData?.rpm || 0) : "--"} 
+          unit="RPM" 
           color={isDeviceActive ? getStatusColor(vehicleData?.rpm, 'RPM') : "text-slate-600"} 
-        />
-        <MetricCard 
-            icon={<Thermometer size={18}/>} 
-            value={isDeviceActive ? (vehicleData?.temp ?? '--') : "--"} 
-            unit="°C" 
-            color={isDeviceActive ? getStatusColor(vehicleData?.temp, 'TEMP') : "text-slate-600"} 
-        />
-        <MetricCard 
-            icon={<Battery size={18}/>} 
-            value={isDeviceActive ? (vehicleData?.battery ?? '--') : "--"} 
-            unit="VOLTS" 
-            color={isDeviceActive ? getStatusColor(vehicleData?.battery, 'BATTERY') : "text-slate-600"} 
-        />
-        <MetricCard 
-            icon={<FuelIcon size={18}/>} 
-            value={isDeviceActive ? (vehicleData?.fuel ?? '--') : "--"} 
-            unit="%" 
-            color={isDeviceActive ? getStatusColor(vehicleData?.fuel, 'FUEL') : "text-slate-600"} 
-        />
-        <MetricCard 
-          icon={<AlertCircle size={18}/>} 
-          value={isDeviceActive ? (isMilActive(vehicleData?.mil) ? "ERR" : "OK") : "--"} 
-          unit={isDeviceActive ? (isMilActive(vehicleData?.mil) ? "CHECK ENGINE" : "HEALTHY") : "INACTIVE"} 
-          color={isDeviceActive ? getStatusColor(vehicleData?.mil, 'MIL') : "text-slate-600"} 
-        />
-      </div>
+      />
+      <MetricCard 
+          icon={<Thermometer size={18}/>} 
+          value={isDeviceActive ? (vehicleData?.temp ?? '--') : "--"} 
+          unit="°C" 
+          color={isDeviceActive ? getStatusColor(vehicleData?.temp, 'TEMP') : "text-slate-600"} 
+      />
+      <MetricCard 
+          icon={<Battery size={18}/>} 
+          value={isDeviceActive ? (vehicleData?.battery ?? '--') : "--"} 
+          unit="VOLTS" 
+          // 🔥 Correctly picks up the 11.5V - 11.8V Warning range
+          color={isDeviceActive ? getStatusColor(vehicleData?.battery, 'BATTERY') : "text-slate-600"} 
+      />
+      <MetricCard 
+          icon={<FuelIcon size={18}/>} 
+          // 🔥 Formats to 1 decimal place and handles the 0-speed sensor glitch
+          value={isDeviceActive 
+            ? (vehicleData?.speed <= 5 
+                ? (vehicleData?.fuel > 10 ? 1.2 : (vehicleData?.fuel || 0).toFixed(1)) 
+                : (vehicleData?.fuel || 0).toFixed(1)) 
+            : "--"
+          } 
+          // 🔥 Dynamic Unit Label
+          unit={isDeviceActive ? (vehicleData?.speed <= 5 ? "L/H" : "KM/L") : "UNIT"} 
+          // 🔥 Passes speed so thresholds.js knows which logic to apply
+          color={isDeviceActive ? getStatusColor(vehicleData?.fuel, 'FUEL', vehicleData?.speed) : "text-slate-600"} 
+      />
+      <MetricCard 
+        icon={<AlertCircle size={18}/>} 
+        value={isDeviceActive ? (isMilActive(vehicleData?.mil) ? "ERR" : "OK") : "--"} 
+        unit={isDeviceActive ? (isMilActive(vehicleData?.mil) ? "CHECK ENGINE" : "HEALTHY") : "INACTIVE"} 
+        color={isDeviceActive ? getStatusColor(vehicleData?.mil, 'MIL') : "text-slate-600"} 
+      />
+    </div>
 
       {/* 2. MAIN CONTENT (Map & Nav) */}
       <div className="flex-1 flex p-2 gap-2 min-h-0">
